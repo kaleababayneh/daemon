@@ -16,7 +16,7 @@ deploy contracts
 npx hardhat run scripts/deploy.ts --network localhost
 
 // frontend set up
- npx hardhat node  
-./get-account-address.sh
-page.tsx const SMART_ACCOUNT_ADDRESS = 'YOUR_DEPLOYED_ADDRESS'
-npm run dev
+npx hardhat node 
+npx hardhat run scripts/deploy.ts --network localhost
+npx hardhat run scripts/execute.ts --network localhost
+cd frontend && npm run dev
