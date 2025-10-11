@@ -4,7 +4,7 @@ use poseidon::poseidon2::Poseidon2;
 fn main(
     // public inputs
     nullifier_hash: pub Field,
-    guardians_commitment: pub [Field; 5],
+    guardians_commitment: pub [Field; 10],
     new_owner: pub Field,       
     current_owner: pub Field,   
     // private inputs
@@ -24,7 +24,7 @@ fn main(
     let mut is_commited: bool = false; 
     let commitment = Poseidon2::hash([secret_key, secret_answer_one], 2);
 
-    for i in 0..5 {
+    for i in 0..10 {
         if guardians_commitment[i] == commitment {
             is_commited = true;
         }
@@ -59,13 +59,18 @@ fn test_main() {
     ], 4);
     
     // Setup guardians commitment array
-    let mut guardians_commitment = [0; 5];
+    let mut guardians_commitment = [0; 10];
     guardians_commitment[0] = 11111;
     guardians_commitment[1] = 22222;
     guardians_commitment[2] = guardian_commitment;
     guardians_commitment[3] = 33333;
     guardians_commitment[4] = 44444;
-    
+    guardians_commitment[5] = 55555;
+    guardians_commitment[6] = 66666;
+    guardians_commitment[7] = 77777;
+    guardians_commitment[8] = 88888;
+    guardians_commitment[9] = 99999;
+
     // Call main function with correct signature
     main(
         nullifier_hash,
@@ -94,7 +99,7 @@ fn test_invalid_guardian_should_fail() {
     ], 4);
     
     // Create guardians list WITHOUT our guardian
-    let guardians_commitment = [11111, 22222, 33333, 44444, 55555];
+    let guardians_commitment = [11111, 22222, 33333, 44444, 55555, 66666, 77777, 88888, 99999, 101010];
     
     main(
         nullifier_hash,
