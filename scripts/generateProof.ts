@@ -6,26 +6,38 @@ import path from "path";
 
 const circuit = JSON.parse(
     fs.readFileSync(
-        path.resolve(__dirname, "../../circuits/target/circuits.json"),
+        path.resolve(__dirname, "../circuits/target/circuits.json"),
         "utf-8"
     )
 );
 
+
+export function englishWordToField(word: string): Fr {
+    let binaryString = "";
+    for (let i = 0; i < word.length; i++) {
+        binaryString += word.charCodeAt(i).toString(2).padStart(8, "0");
+    }
+    const wordBigInt = BigInt("0b" + binaryString);
+    return new Fr(wordBigInt);
+}
+
+
 export default async function generateProof(): Promise<any> {
-    const inputs = process.argv.slice(2);
     const bb = await Barretenberg.new();
 
-    const nullifier = inputs[0];
-    const secret = inputs[1];
-    const recipient = inputs[2];
-    const leaves = inputs.slice(3);
-   
-    const commitment = await bb.poseidon2Hash([Fr.fromString(nullifier), Fr.fromString(secret)]);
 
 
-    const nullifier_hash = await bb.poseidon2Hash([Fr.fromString(nullifier)]);
-    const merkleProof = tree.proof(tree.getIndex(commitment.toString()));
-    
+
+    const secret_key = Fr.fromString("0xdf57089febbacf7ba0bc227dafbffa9fc08a93fdc68e1e42411a14efcf23656e");
+    const secret_answer_one = englishWordToField("apple"); // fruit
+    const secret_answer_two = englishWordToField("dog"); // animal
+    const current_owner = Fr.fromString("0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266");
+    const new_owner = Fr.fromString("0xdd2fd4581271e230360230f9337d5c0430bf44c0");
+
+
+    const nullifier_hash = await bb.poseidon2Hash([secret_key,secret_answer_one,current_owner]);
+
+
     try{
        
         const noir = new Noir(circuit);
@@ -45,15 +57,17 @@ export default async function generateProof(): Promise<any> {
             secret_answer_two: Field,
             secret_key: Field,
          */
-        const input = {
-            root: tree.root().toString(),
-            nullifier_hash: nullifier_hash.toString(),
-            recipient: recipient,
-            nullifier: nullifier,
-            secret: secret,
-            merkle_proof: merkleProof.pathElements.map((el) => el.toString()),
-            is_even: merkleProof.pathIndices.map((el) => (el % 2 === 0 ? true : false)),
 
+        const input = {
+            // public inputs
+            nullifier_hash: nullifier_hash.toString(),
+            guardians_commitment: [11111, 22222, 33333, 44444, 55555, 66666, 77777, 88888, 99999, 101010].map((x) => Fr.fromString(x.toString()).toString()),
+            new_owner: new_owner.toString(),
+            current_owner: current_owner.toString(),
+            // private inputs
+            secret_answer_one: secret_answer_one.toString(),
+            secret_answer_two: secret_answer_two.toString(),
+            secret_key: secret_key.toString(),
         }
 
         const { witness } = await noir.execute(input);
@@ -66,9 +80,7 @@ export default async function generateProof(): Promise<any> {
         
         // Create public inputs array
         const publicInputs = [
-            tree.root(),
-            nullifier_hash.toString(),
-            recipient
+            nullifier_hash.toBuffer(),
         ];
         
         const result = ethers.AbiCoder.defaultAbiCoder().encode(
