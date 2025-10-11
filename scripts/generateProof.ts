@@ -61,7 +61,7 @@ export default async function generateProof(): Promise<any> {
         const input = {
             
             nullifier_hash: nullifier_hash.toString(),
-            guardians_commitment: [commitment.toString()],
+            guardians_commitment: [commitment.toString(), "1", "2", "3", "4", "5", "6", "7", "8", "9"], // Padding to match [Field; 10]
             new_owner: new_owner.toString(),
             current_owner: current_owner.toString(),
 
