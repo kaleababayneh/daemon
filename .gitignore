@@ -19,3 +19,6 @@
 # Hardhat coverage reports
 /coverage
 
+/frontend/node_modules
+/frontend/.next
+/frontend/node_modules
