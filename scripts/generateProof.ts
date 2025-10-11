@@ -3,6 +3,11 @@ import { ethers } from "ethers";
 import { Noir } from "@noir-lang/noir_js";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
+import generateCommitment, { englishWordToField } from "./generateCommitment.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const circuit = JSON.parse(
     fs.readFileSync(
@@ -11,32 +16,27 @@ const circuit = JSON.parse(
     )
 );
 
-
-export function englishWordToField(word: string): Fr {
-    let binaryString = "";
-    for (let i = 0; i < word.length; i++) {
-        binaryString += word.charCodeAt(i).toString(2).padStart(8, "0");
-    }
-    const wordBigInt = BigInt("0b" + binaryString);
-    return new Fr(wordBigInt);
-}
+const FIELD_MODULUS = 21888242871839275222246405745257275088548364400416034343698204186575808495617n; // Prime field order
 
 
 export default async function generateProof(): Promise<any> {
     const bb = await Barretenberg.new();
 
 
-
-
-    const secret_key = Fr.fromString("0xdf57089febbacf7ba0bc227dafbffa9fc08a93fdc68e1e42411a14efcf23656e");
+    const secret_key = Fr.fromString((0xdf57089febbacf7ba0bc227dafbffa9fc08a93fdc68e1e42411a14efcf23656en % FIELD_MODULUS).toString()); // example secret key
     const secret_answer_one = englishWordToField("apple"); // fruit
     const secret_answer_two = englishWordToField("dog"); // animal
-    const current_owner = Fr.fromString("0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266");
-    const new_owner = Fr.fromString("0xdd2fd4581271e230360230f9337d5c0430bf44c0");
+    const current_owner = new Fr(BigInt("0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"));
+    const new_owner = new Fr(BigInt("0xdd2fd4581271e230360230f9337d5c0430bf44c0"));
 
 
     const nullifier_hash = await bb.poseidon2Hash([secret_key,secret_answer_one,current_owner]);
+    const commitment = await generateCommitment();
 
+    console.log("Commitment:", commitment.toString());
+    console.log("Nullifier Hash:", nullifier_hash.toString());
+
+    bb.destroy();
 
     try{
        
@@ -59,36 +59,33 @@ export default async function generateProof(): Promise<any> {
          */
 
         const input = {
-            // public inputs
+            
             nullifier_hash: nullifier_hash.toString(),
-            guardians_commitment: [11111, 22222, 33333, 44444, 55555, 66666, 77777, 88888, 99999, 101010].map((x) => Fr.fromString(x.toString()).toString()),
+            guardians_commitment: [commitment.toString()],
             new_owner: new_owner.toString(),
             current_owner: current_owner.toString(),
-            // private inputs
+
             secret_answer_one: secret_answer_one.toString(),
             secret_answer_two: secret_answer_two.toString(),
             secret_key: secret_key.toString(),
         }
 
         const { witness } = await noir.execute(input);
-        const originalLog = console.log;
-        console.log = function() {};
         const { proof } = await honk.generateProof(witness, {
             keccak: true,
         });
-        console.log = originalLog;
         
-        // Create public inputs array
-        const publicInputs = [
-            nullifier_hash.toBuffer(),
-        ];
+        // // Create public inputs array
+        // const publicInputs = [
+        //     nullifier_hash.toBuffer(),
+        // ];
         
-        const result = ethers.AbiCoder.defaultAbiCoder().encode(
-            ["bytes", "bytes32[]"],
-            [proof, publicInputs]
-        );
+        // const result = ethers.AbiCoder.defaultAbiCoder().encode(
+        //     ["bytes", "bytes32[]"],
+        //     [proof, publicInputs]
+        // );
 
-        return result;
+        return "Proof generated successfully";
     } catch (error) {
         console.error("Error generating proof:", error);
         throw error;
@@ -99,8 +96,8 @@ export default async function generateProof(): Promise<any> {
 (
     async () => {
         generateProof().then((result) => {
-           process.stdout.write(result);
-           process.exit(0);
+            console.log("Proof:", result);
+              process.exit(0);
         }).catch((error) => {
             console.error(error);
             process.exit(1);

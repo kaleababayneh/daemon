@@ -27,14 +27,14 @@ export default async function generateCommitment(): Promise<Fr> {
 }
 
 
-(
-    async () => {
-        generateCommitment().then((result) => {
-            console.log("Commitment:", result.toString());
-           process.exit(0);
-        }).catch((error) => {
-            console.error(error);
-            process.exit(1);
-        })
-    }
-)();
+// (
+//     async () => {
+//         generateCommitment().then((result) => {
+//             console.log("Commitment:", result.toString());
+//            process.exit(0);
+//         }).catch((error) => {
+//             console.error(error);
+//             process.exit(1);
+//         })
+//     }
+// )();
