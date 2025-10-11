@@ -5,16 +5,17 @@ import { ethers } from 'ethers'
 import { SmartAccountABI } from './abis/SmartAccount'
 import { ERC20MockABI } from './abis/ERC20Mock'
 
-// Contract addresses from deployment
-const SMART_ACCOUNT_ADDRESS = '0xa16E02E87b7454126E5E10d957A927A7F5B5d2be' // Replace with actual address
-const FACTORY_ADDRESS = '0x5fbdb2315678afecb367f032d93f642f64180aa3' // Smart Account Factory
-const ENTRY_POINT_ADDRESS = '0xe7f1725e7734ce288f8367e1bb143e90bb3f0512' // Entry Point
-const ERC20_MOCK_ADDRESS = '0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9' // ERC20 Mock Token
+// Contract addresses from ZK deployment
+// Calculated smart account address using getCreateAddress with FACTORY_NONCE = 1
+const SMART_ACCOUNT_ADDRESS = '0xd8058efe0198ae9dD7D563e1b4938Dcbc86A1F81' // Calculated address
+const FACTORY_ADDRESS = '0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9' // Smart Account Factory
+const ENTRY_POINT_ADDRESS = '0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0' // Entry Point
+const ERC20_MOCK_ADDRESS = '0x5fc8d32690cc91d4c39d9d3abcbd16989f875707' // ERC20 Mock Token
 
 interface AccountInfo {
   address: string
   owner: string
-  guardian: string
+  guardianCommitment: string
   nonce: number
 }
 
@@ -45,9 +46,20 @@ export default function Home() {
   const [recoveryForm, setRecoveryForm] = useState({
     smartAccountAddress: '',
     newOwnerAddress: '',
-    guardianAddress: '',
+    // ZK Recovery fields only
+    guardianCommitment: '',
+    nullifierHash: '',
+    zkProof: '',
   })
   const [mintAmount, setMintAmount] = useState('1000')
+  const [showGuardianTools, setShowGuardianTools] = useState(false)
+  const [guardianForm, setGuardianForm] = useState({
+    secretKey: '1',
+    secretAnswer: '2',
+    currentOwner: '',
+    newOwner: ''
+  })
+  const [zkProgress, setZkProgress] = useState('')
 
   // Find smart accounts associated with the connected wallet
   const findConnectedSmartAccounts = async (walletAddress: string) => {
@@ -291,9 +303,9 @@ export default function Home() {
       const provider = new ethers.BrowserProvider(window.ethereum)
       const contract = new ethers.Contract(accountAddress, SmartAccountABI, provider)
       
-      const [owner, guardian] = await Promise.all([
+      const [owner, guardianCommitment] = await Promise.all([
         contract.owner(),
-        contract.guardian()
+        contract.getGuardianCommitments()
       ])
 
       const nonce = await contract.getNonce(owner)
@@ -301,7 +313,7 @@ export default function Home() {
       setAccountInfo({
         address: accountAddress,
         owner,
-        guardian,
+        guardianCommitment,
         nonce: Number(nonce)
       })
       setStatus({ type: 'success', message: 'Account information loaded successfully' })
@@ -316,10 +328,15 @@ export default function Home() {
     }
   }
 
-  // Set guardian (for account owner)
+  // Set guardian (for account owner) - ZK commitment only
   const setGuardian = async () => {
     if (!isConnected || !account) {
       setStatus({ type: 'error', message: 'Please connect your wallet' })
+      return
+    }
+
+    if (!recoveryForm.guardianCommitment) {
+      setStatus({ type: 'error', message: 'Please provide guardian commitment hash' })
       return
     }
 
@@ -329,24 +346,30 @@ export default function Home() {
       const signer = await provider.getSigner()
       const contract = new ethers.Contract(recoveryForm.smartAccountAddress, SmartAccountABI, signer)
       
-      const tx = await contract.setGuardian(recoveryForm.guardianAddress)
+      // Use the commitment hash directly (bytes32)
+      const tx = await contract.setGuardian(recoveryForm.guardianCommitment)
       await tx.wait()
       
-      setStatus({ type: 'success', message: 'Guardian set successfully!' })
+      setStatus({ type: 'success', message: 'Guardian commitment set successfully!' })
       // Reload account info
       await loadAccountInfo(recoveryForm.smartAccountAddress)
     } catch (error) {
       console.error('Error setting guardian:', error)
-      setStatus({ type: 'error', message: 'Failed to set guardian. Make sure you are the owner of this account.' })
+      setStatus({ type: 'error', message: 'Failed to set guardian commitment. Make sure you are the owner of this account.' })
     } finally {
       setLoading(false)
     }
   }
 
-  // Recover account (for guardian)
-  const recoverAccount = async () => {
+  // ZK Recovery function
+  const recoverAccountZK = async () => {
     if (!isConnected || !account || !accountInfo) {
       setStatus({ type: 'error', message: 'Please connect your wallet and load account info' })
+      return
+    }
+
+    if (!recoveryForm.nullifierHash || !recoveryForm.zkProof) {
+      setStatus({ type: 'error', message: 'Please provide nullifier hash and ZK proof' })
       return
     }
 
@@ -355,45 +378,96 @@ export default function Home() {
       const provider = new ethers.BrowserProvider(window.ethereum)
       const signer = await provider.getSigner()
       
-      // Create EIP-712 signature
-      const domain = {
-        name: 'SmartAccount',
-        version: '1',
-        chainId: 31337, // localhost
-        verifyingContract: accountInfo.address
-      }
-
-      const types = {
-        Recover: [
-          { name: 'currentOwner', type: 'address' },
-          { name: 'newOwner', type: 'address' },
-          { name: 'nonce', type: 'uint256' }
-        ]
-      }
-
-      const message = {
-        currentOwner: accountInfo.owner,
-        newOwner: recoveryForm.newOwnerAddress,
-        nonce: accountInfo.nonce
-      }
-
-      const signature = await signer.signTypedData(domain, types, message)
-      
-      // Call recover function
+      // Call ZK recover function
       const contract = new ethers.Contract(accountInfo.address, SmartAccountABI, signer)
       const tx = await contract.recoverAccount(
         recoveryForm.newOwnerAddress,
         accountInfo.nonce,
-        signature
+        recoveryForm.nullifierHash,
+        recoveryForm.zkProof
       )
       await tx.wait()
       
-      setStatus({ type: 'success', message: 'Account recovered successfully!' })
+      setStatus({ type: 'success', message: 'Account recovered successfully using ZK proof!' })
       // Reload account info
       await loadAccountInfo(accountInfo.address)
     } catch (error) {
-      console.error('Error recovering account:', error)
-      setStatus({ type: 'error', message: 'Failed to recover account. Make sure you are the guardian.' })
+      console.error('Error recovering account with ZK:', error)
+      setStatus({ type: 'error', message: 'Failed to recover account with ZK proof. Please check your nullifier hash and proof.' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Guardian Tools Functions
+  const generateCommitment = async () => {
+    try {
+      setLoading(true)
+      setZkProgress('Loading ZK modules...')
+      
+      // Dynamic import for client-side only
+      const { generateCommitmentHash } = await import('../utils/zkProofs')
+      
+      setZkProgress('Generating commitment hash...')
+      
+      const commitment = await generateCommitmentHash(
+        guardianForm.secretKey,
+        guardianForm.secretAnswer
+      )
+      
+      setStatus({ 
+        type: 'success', 
+        message: `Guardian commitment generated: ${commitment}` 
+      })
+      setZkProgress('')
+    } catch (error) {
+      console.error('Error generating commitment:', error)
+      setStatus({ type: 'error', message: 'Failed to generate commitment hash' })
+      setZkProgress('')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const generateRecoveryZKProof = async () => {
+    try {
+      setLoading(true)
+      
+      if (!guardianForm.currentOwner || !guardianForm.newOwner) {
+        setStatus({ type: 'error', message: 'Please provide current and new owner addresses' })
+        return
+      }
+      
+      setZkProgress('Loading ZK modules...')
+      
+      // Dynamic import for client-side only
+      const { generateRecoveryProof } = await import('../utils/zkProofs')
+      
+      const result = await generateRecoveryProof(
+        guardianForm.secretKey,
+        guardianForm.secretAnswer,
+        guardianForm.currentOwner,
+        guardianForm.newOwner,
+        setZkProgress
+      )
+      
+      // Auto-fill the recovery form
+      setRecoveryForm(prev => ({
+        ...prev,
+        newOwnerAddress: guardianForm.newOwner,
+        nullifierHash: result.nullifierHash,
+        zkProof: result.zkProof
+      }))
+      
+      setStatus({ 
+        type: 'success', 
+        message: `ZK proof generated successfully! Nullifier: ${result.nullifierHash.slice(0, 10)}...` 
+      })
+      setZkProgress('')
+    } catch (error) {
+      console.error('Error generating ZK proof:', error)
+      setStatus({ type: 'error', message: 'Failed to generate ZK proof. Make sure the circuit is loaded correctly.' })
+      setZkProgress('')
     } finally {
       setLoading(false)
     }
@@ -520,8 +594,13 @@ export default function Home() {
                 <p>{accountInfo.address}</p>
                 <h4>Current Owner:</h4>
                 <p>{accountInfo.owner}</p>
-                <h4>Guardian:</h4>
-                <p>{accountInfo.guardian || 'No guardian set'}</p>
+                <h4>Guardian Commitment:</h4>
+                <p style={{ fontFamily: 'monospace', fontSize: '12px', wordBreak: 'break-all' }}>
+                  {accountInfo.guardianCommitment === '0x0000000000000000000000000000000000000000000000000000000000000000' 
+                    ? 'No guardian commitment set' 
+                    : accountInfo.guardianCommitment
+                  }
+                </p>
                 <h4>Nonce:</h4>
                 <p>{accountInfo.nonce}</p>
                 
@@ -530,22 +609,15 @@ export default function Home() {
                   <h4>Your Role Status:</h4>
                   <p><strong>Connected Address:</strong> {account}</p>
                   {account?.toLowerCase() === accountInfo.owner.toLowerCase() && (
-                    <p style={{ color: '#059669' }}>✅ You are the <strong>Owner</strong> - You can set guardians</p>
+                    <p style={{ color: '#059669' }}>✅ You are the <strong>Owner</strong> - You can set guardian commitments</p>
                   )}
-                  {account?.toLowerCase() === accountInfo.guardian.toLowerCase() && (
-                    <p style={{ color: '#dc2626' }}>🛡️ You are the <strong>Guardian</strong> - You can recover this account</p>
-                  )}
-                  {account?.toLowerCase() !== accountInfo.owner.toLowerCase() && 
-                   account?.toLowerCase() !== accountInfo.guardian.toLowerCase() && (
-                    <p style={{ color: '#6b7280' }}>👀 You are a <strong>Viewer</strong> - Read-only access</p>
-                  )}
+                  <p style={{ color: '#6b7280' }}>� ZK Recovery - Anyone with valid nullifier hash and ZK proof can recover</p>
                 </div>
 
                 {/* Testing Instructions */}
-                {account?.toLowerCase() !== accountInfo.owner.toLowerCase() && 
-                 account?.toLowerCase() !== accountInfo.guardian.toLowerCase() && (
+                {account?.toLowerCase() !== accountInfo.owner.toLowerCase() && (
                   <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#fef3c7', borderRadius: '4px' }}>
-                    <h4>🧪 To Test Recovery:</h4>
+                    <h4>🧪 To Test ZK Recovery:</h4>
                     <ol>
                       <li>First, import the <strong>owner's private key</strong> into MetaMask:
                         <br />
@@ -553,9 +625,9 @@ export default function Home() {
                           0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
                         </code>
                       </li>
-                      <li>Switch to that account and set yourself as guardian</li>
-                      <li>Switch back to your account</li>
-                      <li>Refresh the page - you'll see the recovery section!</li>
+                      <li>Switch to that account and set a guardian commitment hash</li>
+                      <li>Use the guardian helper scripts to generate nullifier and ZK proof</li>
+                      <li>Return here and use the ZK recovery section!</li>
                     </ol>
                   </div>
                 )}
@@ -639,36 +711,132 @@ export default function Home() {
             </div>
           )}
 
-          {/* Set Guardian (for owners) */}
+          {/* Guardian Tools */}
+          <div className="card">
+            <h2>🛡️ Guardian Tools</h2>
+            <p>Generate commitment hashes and ZK proofs for privacy-preserving recovery.</p>
+            
+            <button
+              className="button"
+              onClick={() => setShowGuardianTools(!showGuardianTools)}
+              style={{ marginBottom: '15px' }}
+            >
+              {showGuardianTools ? 'Hide Guardian Tools' : 'Show Guardian Tools'}
+            </button>
+            
+            {showGuardianTools && (
+              <div style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '15px' }}>
+                <h3>Guardian Secret Values</h3>
+                <div className="form-group">
+                  <label className="label">Secret Key:</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={guardianForm.secretKey}
+                    onChange={(e) => setGuardianForm({ ...guardianForm, secretKey: e.target.value })}
+                    placeholder="Enter your secret key (e.g., 1)"
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label className="label">Secret Answer:</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={guardianForm.secretAnswer}
+                    onChange={(e) => setGuardianForm({ ...guardianForm, secretAnswer: e.target.value })}
+                    placeholder="Enter your secret answer (e.g., 2)"
+                  />
+                </div>
+                
+                <div style={{ marginTop: '15px', marginBottom: '15px' }}>
+                  <button
+                    className="button"
+                    onClick={generateCommitment}
+                    disabled={loading || !guardianForm.secretKey || !guardianForm.secretAnswer}
+                  >
+                    {loading ? 'Generating...' : 'Generate Commitment Hash'}
+                  </button>
+                </div>
+                
+                <hr style={{ margin: '20px 0' }} />
+                
+                <h3>Recovery Proof Generation</h3>
+                <div className="form-group">
+                  <label className="label">Current Owner Address:</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={guardianForm.currentOwner}
+                    onChange={(e) => setGuardianForm({ ...guardianForm, currentOwner: e.target.value })}
+                    placeholder="0x..."
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label className="label">New Owner Address:</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={guardianForm.newOwner}
+                    onChange={(e) => setGuardianForm({ ...guardianForm, newOwner: e.target.value })}
+                    placeholder="0x..."
+                  />
+                </div>
+                
+                <button
+                  className="button"
+                  onClick={generateRecoveryZKProof}
+                  disabled={loading || !guardianForm.secretKey || !guardianForm.secretAnswer || !guardianForm.currentOwner || !guardianForm.newOwner}
+                >
+                  {loading ? 'Generating ZK Proof...' : 'Generate Recovery Proof'}
+                </button>
+                
+                {zkProgress && (
+                  <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#f0f8ff', borderRadius: '4px' }}>
+                    <p style={{ margin: 0, fontSize: '14px' }}>🔄 {zkProgress}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Set Guardian (for owners) - ZK Commitment Only */}
           {accountInfo && account?.toLowerCase() === accountInfo.owner.toLowerCase() && (
             <div className="card">
-              <h2>Set Guardian</h2>
-              <p>As the account owner, you can set a guardian for recovery purposes.</p>
+              <h2>Set Guardian (ZK Privacy-Preserving)</h2>
+              <p>As the account owner, you can set a guardian commitment hash for ZK-based recovery.</p>
+              
               <div className="form-group">
-                <label className="label">Guardian Address:</label>
+                <label className="label">Guardian Commitment Hash:</label>
                 <input
                   type="text"
                   className="input"
-                  value={recoveryForm.guardianAddress}
-                  onChange={(e) => setRecoveryForm({ ...recoveryForm, guardianAddress: e.target.value })}
+                  value={recoveryForm.guardianCommitment}
+                  onChange={(e) => setRecoveryForm({ ...recoveryForm, guardianCommitment: e.target.value })}
                   placeholder="0x..."
                 />
+                <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                  This should be provided by your guardian. It's a privacy-preserving commitment hash computed off-chain.
+                </p>
               </div>
+              
               <button
                 className="button"
                 onClick={setGuardian}
-                disabled={loading || !recoveryForm.guardianAddress}
+                disabled={loading || !recoveryForm.guardianCommitment}
               >
-                {loading ? 'Setting...' : 'Set Guardian'}
+                {loading ? 'Setting...' : 'Set Guardian Commitment'}
               </button>
             </div>
           )}
 
-          {/* Account Recovery (for guardians) */}
-          {accountInfo && account?.toLowerCase() === accountInfo.guardian.toLowerCase() && (
+          {/* ZK Account Recovery */}
+          {accountInfo && (
             <div className="card">
-              <h2>Recover Account</h2>
-              <p>As the guardian, you can recover this account to a new owner.</p>
+              <h2>ZK Account Recovery</h2>
+              <p>If you are a guardian or have the ZK proof, you can recover this account by providing the nullifier hash and ZK proof.</p>
+              
               <div className="form-group">
                 <label className="label">New Owner Address:</label>
                 <input
@@ -679,25 +847,54 @@ export default function Home() {
                   placeholder="0x..."
                 />
               </div>
+              
+              <div className="form-group">
+                <label className="label">Nullifier Hash:</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={recoveryForm.nullifierHash}
+                  onChange={(e) => setRecoveryForm({ ...recoveryForm, nullifierHash: e.target.value })}
+                  placeholder="0x..."
+                />
+                <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                  This should be provided by the guardian along with the ZK proof.
+                </p>
+              </div>
+              
+              <div className="form-group">
+                <label className="label">ZK Proof:</label>
+                <textarea
+                  className="input"
+                  value={recoveryForm.zkProof}
+                  onChange={(e) => setRecoveryForm({ ...recoveryForm, zkProof: e.target.value })}
+                  placeholder="0x..."
+                  rows={3}
+                  style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '12px' }}
+                />
+                <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                  The ZK proof generated by the guardian for this recovery.
+                </p>
+              </div>
+              
               <button
                 className="button"
-                onClick={recoverAccount}
-                disabled={loading || !recoveryForm.newOwnerAddress}
+                onClick={recoverAccountZK}
+                disabled={loading || !recoveryForm.newOwnerAddress || !recoveryForm.nullifierHash || !recoveryForm.zkProof}
               >
-                {loading ? 'Recovering...' : 'Recover Account'}
+                {loading ? 'Recovering...' : 'Recover Account with ZK Proof'}
               </button>
             </div>
           )}
 
-          {/* Instructions for non-owners/non-guardians */}
+          {/* Instructions for non-owners */}
           {accountInfo && 
-           account?.toLowerCase() !== accountInfo.owner.toLowerCase() && 
-           account?.toLowerCase() !== accountInfo.guardian.toLowerCase() && (
+           account?.toLowerCase() !== accountInfo.owner.toLowerCase() && (
             <div className="card">
-              <h2>Testing Recovery</h2>
-              <p>You're viewing as a non-owner/non-guardian. To test recovery:</p>
+              <h2>Testing ZK Recovery</h2>
+              <p>You're viewing as a non-owner. To test ZK recovery:</p>
               <div style={{ backgroundColor: '#f0f8ff', padding: '15px', borderRadius: '4px', margin: '10px 0' }}>
-                <h4>Option 1: Import Owner Account</h4>
+                <h4>Step 1: Import Owner Account</h4>
                 <p>Import this private key into MetaMask:</p>
                 <code style={{ backgroundColor: '#fff', padding: '8px', display: 'block', borderRadius: '4px', fontSize: '12px', wordBreak: 'break-all' }}>
                   0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
@@ -705,8 +902,8 @@ export default function Home() {
                 <p style={{ fontSize: '12px', marginTop: '5px' }}>This is Hardhat's default account #1 (safe for testing)</p>
               </div>
               <div style={{ backgroundColor: '#f0fdf4', padding: '15px', borderRadius: '4px', margin: '10px 0' }}>
-                <h4>Option 2: Set Current Account as Guardian</h4>
-                <p>If you can access the owner account, set your current account ({account}) as the guardian, then reload this page.</p>
+                <h4>Step 2: Set Guardian Commitment</h4>
+                <p>Use the owner account to set a guardian commitment hash, then use the guardian helper scripts to generate nullifier and ZK proof for recovery.</p>
               </div>
             </div>
           )}

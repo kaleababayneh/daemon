@@ -4,17 +4,20 @@ import { getCreateAddress } from "ethers";
 import { encodeFunctionData, hashMessage } from "viem/utils";
 
 /**
-AF deployed to 0x5fbdb2315678afecb367f032d93f642f64180aa3
-EP deployed to 0xe7f1725e7734ce288f8367e1bb143e90bb3f0512
-PM deployed to 0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0
-ERC20Mock deployed to 0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9
+ZK Deployment Addresses:
+Poseidon2:           0x5fbdb2315678afecb367f032d93f642f64180aa3
+HonkVerifier:        0xe7f1725e7734ce288f8367e1bb143e90bb3f0512
+EntryPoint:          0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0
+SmartAccountFactory: 0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9
+Paymaster:           0xdc64a140aa3e981100a9beca4e685f962f0cf6c9
+ERC20Mock:           0x5fc8d32690cc91d4c39d9d3abcbd16989f875707
  */
 
 const FACTORY_NONCE = 1;
-const FACTORY_ADDR = "0x5fbdb2315678afecb367f032d93f642f64180aa3"; 
-const EP_ADDR = "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512";      
-const PM_ADDR = "0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0";     
-const ERC20Mock_ADDR = "0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9";
+const FACTORY_ADDR = "0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9"; // SmartAccountFactory
+const EP_ADDR = "0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0";      // EntryPoint
+const PM_ADDR = "0xdc64a140aa3e981100a9beca4e685f962f0cf6c9";     // Paymaster
+const ERC20Mock_ADDR = "0x5fc8d32690cc91d4c39d9d3abcbd16989f875707"; // ERC20Mock
 
 async function main() {
     const [signer0, signer1] = await viem.getWalletClients();

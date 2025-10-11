@@ -210,8 +210,29 @@ export const SmartAccountABI = [
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "renounceOwnership",
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "nonce",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "nullifierHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes",
+        "name": "zkProof",
+        "type": "bytes"
+      }
+    ],
+    "name": "recoverAccount",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -219,14 +240,53 @@ export const SmartAccountABI = [
   {
     "inputs": [
       {
-        "internalType": "address",
+        "internalType": "bytes32",
         "name": "_guardian",
-        "type": "address"
+        "type": "bytes32"
       }
     ],
     "name": "setGuardian",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getGuardianCommitments",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "guardianCommitments",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "guardianCount",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
