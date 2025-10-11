@@ -39,6 +39,7 @@ export default function Home() {
   const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null)
   const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null)
   const [connectedSmartAccounts, setConnectedSmartAccounts] = useState<string[]>([])
+  const [skipAutoDetection, setSkipAutoDetection] = useState(false)
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error', message: string } | null>(null)
   const [recoveryForm, setRecoveryForm] = useState({
@@ -55,8 +56,11 @@ export default function Home() {
       const provider = new ethers.BrowserProvider(window.ethereum)
       const foundAccounts: string[] = []
 
-      // Method 1: Check the known smart account address
+      // Only check the known smart account address to avoid rate limiting
       try {
+        // Add a small delay to avoid overwhelming MetaMask
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        
         const contract = new ethers.Contract(SMART_ACCOUNT_ADDRESS, SmartAccountABI, provider)
         const [owner, guardian] = await Promise.all([
           contract.owner(),
@@ -67,65 +71,49 @@ export default function Home() {
             guardian.toLowerCase() === walletAddress.toLowerCase()) {
           foundAccounts.push(SMART_ACCOUNT_ADDRESS)
         }
-      } catch (error) {
-        console.log('Known smart account not found or error:', error)
-      }
-
-      // Method 2: Calculate potential smart account addresses from factory
-      // Check first few nonces for accounts created by this address
-      for (let nonce = 0; nonce < 5; nonce++) {
-        try {
-          const { getCreateAddress } = ethers
-          const potentialAddress = getCreateAddress({
-            from: FACTORY_ADDRESS,
-            nonce: nonce
+      } catch (error: any) {
+        console.log('Smart account check failed:', error.message)
+        
+        // Check if it's a circuit breaker error
+        if (error.message && error.message.includes('circuit breaker')) {
+          setStatus({ 
+            type: 'error', 
+            message: 'MetaMask circuit breaker is active. To fix this: 1) Close MetaMask completely, 2) Reopen MetaMask, 3) Try connecting again. Or wait 5-10 minutes for it to reset automatically.' 
           })
-          
-          // Check if this address has code (is deployed)
-          const code = await provider.getCode(potentialAddress)
-          if (code && code !== '0x') {
-            try {
-              const contract = new ethers.Contract(potentialAddress, SmartAccountABI, provider)
-              const [owner, guardian] = await Promise.all([
-                contract.owner(),
-                contract.guardian()
-              ])
-              
-              if (owner.toLowerCase() === walletAddress.toLowerCase() || 
-                  guardian.toLowerCase() === walletAddress.toLowerCase()) {
-                foundAccounts.push(potentialAddress)
-              }
-            } catch (error) {
-              // Not a smart account or error reading
-              continue
-            }
-          }
-        } catch (error) {
-          continue
+          return
+        }
+        
+        // Check if contract doesn't exist
+        if (error.code === 'CALL_EXCEPTION') {
+          setStatus({ 
+            type: 'info', 
+            message: 'Smart account not found at expected address. Please manually enter your smart account address below.' 
+          })
+          return
         }
       }
 
-      setConnectedSmartAccounts(Array.from(new Set(foundAccounts))) // Remove duplicates
+      setConnectedSmartAccounts(foundAccounts)
       
       if (foundAccounts.length > 0) {
         setStatus({ 
           type: 'success', 
-          message: `Found ${foundAccounts.length} smart account(s) associated with your wallet!` 
+          message: `Found smart account associated with your wallet!` 
         })
-        // Auto-load the first one
-        if (foundAccounts[0]) {
-          setRecoveryForm(prev => ({ ...prev, smartAccountAddress: foundAccounts[0] }))
-          await loadAccountInfo(foundAccounts[0])
-        }
+        setRecoveryForm(prev => ({ ...prev, smartAccountAddress: foundAccounts[0] }))
+        await loadAccountInfo(foundAccounts[0])
       } else {
         setStatus({ 
           type: 'info', 
-          message: 'No smart accounts found associated with your wallet.' 
+          message: 'No smart accounts found. You can manually enter a smart account address below.' 
         })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error finding smart accounts:', error)
-      setStatus({ type: 'error', message: 'Error scanning for smart accounts' })
+      setStatus({ 
+        type: 'error', 
+        message: 'Error scanning for smart accounts. Please try manually entering the address.' 
+      })
     } finally {
       setLoading(false)
     }
@@ -140,14 +128,41 @@ export default function Home() {
         setIsConnected(true)
         setStatus({ type: 'success', message: 'Wallet connected successfully' })
         
-        // Automatically find smart accounts
-        await findConnectedSmartAccounts(accounts[0])
+        // Only auto-detect if not skipping and not previously failed
+        if (!skipAutoDetection) {
+          try {
+            await findConnectedSmartAccounts(accounts[0])
+          } catch (error: any) {
+            if (error.message && error.message.includes('circuit breaker')) {
+              setSkipAutoDetection(true)
+              setStatus({ 
+                type: 'info', 
+                message: 'Wallet connected! Please manually enter your smart account address below to continue.' 
+              })
+            }
+          }
+        } else {
+          setStatus({ 
+            type: 'info', 
+            message: 'Wallet connected! Please manually enter your smart account address below to continue.' 
+          })
+        }
       } catch (error) {
         console.error('Error connecting wallet:', error)
         setStatus({ type: 'error', message: 'Failed to connect wallet' })
       }
     } else {
       setStatus({ type: 'error', message: 'Please install MetaMask' })
+    }
+  }
+
+  // Retry function for circuit breaker
+  const retryConnection = async () => {
+    if (account) {
+      setStatus({ type: 'info', message: 'Retrying connection...' })
+      await findConnectedSmartAccounts(account)
+    } else {
+      await connectWallet()
     }
   }
 
@@ -460,6 +475,23 @@ export default function Home() {
             {connectedSmartAccounts.length > 0 && (
               <p>Or enter a different smart account address manually:</p>
             )}
+            {skipAutoDetection && (
+              <div style={{ backgroundColor: '#f0f8ff', padding: '10px', borderRadius: '4px', marginBottom: '10px' }}>
+                <p><strong>💡 Hint:</strong> Based on our deployment, your smart account should be at:</p>
+                <p style={{ fontFamily: 'monospace', fontSize: '14px', backgroundColor: '#fff', padding: '5px', borderRadius: '3px' }}>
+                  0xa16E02E87b7454126E5E10d957A927A7F5B5d2be
+                </p>
+                <button 
+                  className="button" 
+                  style={{ fontSize: '12px', padding: '5px 10px', marginTop: '5px' }}
+                  onClick={() => {
+                    setRecoveryForm(prev => ({ ...prev, smartAccountAddress: '0xa16E02E87b7454126E5E10d957A927A7F5B5d2be' }))
+                  }}
+                >
+                  Use This Address
+                </button>
+              </div>
+            )}
             <div className="form-group">
               <label className="label">Smart Account Address:</label>
               <input
@@ -492,6 +524,41 @@ export default function Home() {
                 <p>{accountInfo.guardian || 'No guardian set'}</p>
                 <h4>Nonce:</h4>
                 <p>{accountInfo.nonce}</p>
+                
+                {/* Role Status */}
+                <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                  <h4>Your Role Status:</h4>
+                  <p><strong>Connected Address:</strong> {account}</p>
+                  {account?.toLowerCase() === accountInfo.owner.toLowerCase() && (
+                    <p style={{ color: '#059669' }}>✅ You are the <strong>Owner</strong> - You can set guardians</p>
+                  )}
+                  {account?.toLowerCase() === accountInfo.guardian.toLowerCase() && (
+                    <p style={{ color: '#dc2626' }}>🛡️ You are the <strong>Guardian</strong> - You can recover this account</p>
+                  )}
+                  {account?.toLowerCase() !== accountInfo.owner.toLowerCase() && 
+                   account?.toLowerCase() !== accountInfo.guardian.toLowerCase() && (
+                    <p style={{ color: '#6b7280' }}>👀 You are a <strong>Viewer</strong> - Read-only access</p>
+                  )}
+                </div>
+
+                {/* Testing Instructions */}
+                {account?.toLowerCase() !== accountInfo.owner.toLowerCase() && 
+                 account?.toLowerCase() !== accountInfo.guardian.toLowerCase() && (
+                  <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#fef3c7', borderRadius: '4px' }}>
+                    <h4>🧪 To Test Recovery:</h4>
+                    <ol>
+                      <li>First, import the <strong>owner's private key</strong> into MetaMask:
+                        <br />
+                        <code style={{ backgroundColor: '#fff', padding: '2px 4px', borderRadius: '2px', fontSize: '12px' }}>
+                          0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+                        </code>
+                      </li>
+                      <li>Switch to that account and set yourself as guardian</li>
+                      <li>Switch back to your account</li>
+                      <li>Refresh the page - you'll see the recovery section!</li>
+                    </ol>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -627,8 +694,20 @@ export default function Home() {
            account?.toLowerCase() !== accountInfo.owner.toLowerCase() && 
            account?.toLowerCase() !== accountInfo.guardian.toLowerCase() && (
             <div className="card">
-              <h2>Information</h2>
-              <p>You are not the owner or guardian of this account. You can view the information but cannot perform any actions.</p>
+              <h2>Testing Recovery</h2>
+              <p>You're viewing as a non-owner/non-guardian. To test recovery:</p>
+              <div style={{ backgroundColor: '#f0f8ff', padding: '15px', borderRadius: '4px', margin: '10px 0' }}>
+                <h4>Option 1: Import Owner Account</h4>
+                <p>Import this private key into MetaMask:</p>
+                <code style={{ backgroundColor: '#fff', padding: '8px', display: 'block', borderRadius: '4px', fontSize: '12px', wordBreak: 'break-all' }}>
+                  0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+                </code>
+                <p style={{ fontSize: '12px', marginTop: '5px' }}>This is Hardhat's default account #1 (safe for testing)</p>
+              </div>
+              <div style={{ backgroundColor: '#f0fdf4', padding: '15px', borderRadius: '4px', margin: '10px 0' }}>
+                <h4>Option 2: Set Current Account as Guardian</h4>
+                <p>If you can access the owner account, set your current account ({account}) as the guardian, then reload this page.</p>
+              </div>
             </div>
           )}
         </>
@@ -638,6 +717,17 @@ export default function Home() {
       {status && (
         <div className={`status-box status-${status.type}`}>
           {status.message}
+          {status.message.includes('circuit breaker') && (
+            <div style={{ marginTop: '10px' }}>
+              <button 
+                className="button" 
+                onClick={retryConnection}
+                disabled={loading}
+              >
+                {loading ? 'Retrying...' : 'Retry Connection'}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
