@@ -2,7 +2,7 @@ import { network } from "hardhat";
 const { viem } = await network.connect();
 import { getCreateAddress } from "ethers";
 import { encodeFunctionData } from "viem/utils";
-import generateProof  from "./generateProof.js";
+import generateProof  from "./generateProof.ts";
 
 /**
  * ZK Social Recovery Test Script
