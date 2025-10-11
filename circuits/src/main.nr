@@ -4,20 +4,19 @@ use poseidon::poseidon2::Poseidon2;
 fn main(
     // public inputs
     nullifier_hash: pub Field,
-    guardians_commitment: pub [Field; 10],
+    guardians_commitment: pub Field,
     new_owner: pub Field,       
     current_owner: pub Field,   
     // private inputs
-    secret_answer_one: Field,
-    secret_answer_two: Field,
+    secret_answer: Field,
     secret_key: Field,
 ) {
 
-    let commitment = Poseidon2::hash([secret_key, secret_answer_one], 2);
+    let commitment = Poseidon2::hash([secret_key, secret_answer], 2);
 
     let computed_nullifier_hash = Poseidon2::hash([
         secret_key, 
-        secret_answer_two,
+        Poseidon2::hash([ secret_answer], 1),
         new_owner,     
         current_owner   
     ], 4);
@@ -25,11 +24,11 @@ fn main(
    
     let mut is_commited: bool = false; 
 
-    for i in 0..10 {
-        if guardians_commitment[i] == commitment {
+    //for i in 0..10 {
+    if guardians_commitment == commitment {
             is_commited = true;
-        }
     }
+    
 
     assert(is_commited);
 }

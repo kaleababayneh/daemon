@@ -40,7 +40,7 @@ contract SmartAccount is IAccount, Ownable, SocialRecovery {
     }
 
 
-    constructor(address entryPoint) Ownable(msg.sender) {
+    constructor(address entryPoint, HonkVerifier _verifier, Poseidon2 _hasher) Ownable(msg.sender) SocialRecovery(_verifier, _hasher) {
         i_entryPoint = IEntryPoint(entryPoint);
     }
 
