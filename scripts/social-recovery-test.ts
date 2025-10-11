@@ -12,6 +12,21 @@ import { encodeFunctionData, hashTypedData } from "viem/utils";
  * 4. Perform account recovery using guardian signature
  */
 
+// taken from @aztec/bb.js/proof
+export function uint8ArrayToHex(buffer: Uint8Array): string {
+  const hex: string[] = [];
+
+  buffer.forEach(function (i) {
+    let h = i.toString(16);
+    if (h.length % 2) {
+      h = "0" + h;
+    }
+    hex.push(h);
+  });
+
+  return hex.join("");
+}
+
 async function main() {
     const [signer0, signer1, guardian] = await viem.getWalletClients();
     const publicClient = await viem.getPublicClient();

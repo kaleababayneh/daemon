@@ -3,17 +3,28 @@
 import { useState, useEffect } from 'react'
 import { ethers } from 'ethers'
 import { SmartAccountABI } from './abis/SmartAccount'
+import { ERC20MockABI } from './abis/ERC20Mock'
 
 // Contract addresses from deployment
 const SMART_ACCOUNT_ADDRESS = '0xa16E02E87b7454126E5E10d957A927A7F5B5d2be' // Replace with actual address
 const FACTORY_ADDRESS = '0x5fbdb2315678afecb367f032d93f642f64180aa3' // Smart Account Factory
 const ENTRY_POINT_ADDRESS = '0xe7f1725e7734ce288f8367e1bb143e90bb3f0512' // Entry Point
+const ERC20_MOCK_ADDRESS = '0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9' // ERC20 Mock Token
 
 interface AccountInfo {
   address: string
   owner: string
   guardian: string
   nonce: number
+}
+
+interface TokenInfo {
+  name: string
+  symbol: string
+  decimals: number
+  totalSupply: string
+  smartAccountBalance: string
+  walletBalance: string
 }
 
 declare global {
@@ -26,6 +37,7 @@ export default function Home() {
   const [account, setAccount] = useState<string>('')
   const [isConnected, setIsConnected] = useState(false)
   const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null)
+  const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null)
   const [connectedSmartAccounts, setConnectedSmartAccounts] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error', message: string } | null>(null)
@@ -34,6 +46,7 @@ export default function Home() {
     newOwnerAddress: '',
     guardianAddress: '',
   })
+  const [mintAmount, setMintAmount] = useState('1000')
 
   // Find smart accounts associated with the connected wallet
   const findConnectedSmartAccounts = async (walletAddress: string) => {
@@ -138,6 +151,124 @@ export default function Home() {
     }
   }
 
+  // Load token information
+  const loadTokenInfo = async () => {
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum)
+      const tokenContract = new ethers.Contract(ERC20_MOCK_ADDRESS, ERC20MockABI, provider)
+      
+      const [name, symbol, decimals, totalSupply] = await Promise.all([
+        tokenContract.name(),
+        tokenContract.symbol(),
+        tokenContract.decimals(),
+        tokenContract.totalSupply()
+      ])
+
+      let smartAccountBalance = '0'
+      let walletBalance = '0'
+
+      // Get smart account balance if available
+      if (recoveryForm.smartAccountAddress) {
+        smartAccountBalance = await tokenContract.balanceOf(recoveryForm.smartAccountAddress)
+      }
+
+      // Get wallet balance if connected
+      if (account) {
+        walletBalance = await tokenContract.balanceOf(account)
+      }
+
+      setTokenInfo({
+        name,
+        symbol,
+        decimals: Number(decimals),
+        totalSupply: ethers.formatUnits(totalSupply, decimals),
+        smartAccountBalance: ethers.formatUnits(smartAccountBalance, decimals),
+        walletBalance: ethers.formatUnits(walletBalance, decimals)
+      })
+    } catch (error) {
+      console.error('Error loading token info:', error)
+      setStatus({ type: 'error', message: 'Failed to load token information' })
+    }
+  }
+
+  // Mint tokens to smart account
+  const mintTokensToSmartAccount = async () => {
+    if (!recoveryForm.smartAccountAddress || !mintAmount) {
+      setStatus({ type: 'error', message: 'Please select a smart account and enter mint amount' })
+      return
+    }
+
+    try {
+      setLoading(true)
+      const provider = new ethers.BrowserProvider(window.ethereum)
+      const signer = await provider.getSigner()
+      const tokenContract = new ethers.Contract(ERC20_MOCK_ADDRESS, ERC20MockABI, signer)
+      
+      const decimals = tokenInfo?.decimals || 18
+      const amount = ethers.parseUnits(mintAmount, decimals)
+      
+      const tx = await tokenContract.mint(recoveryForm.smartAccountAddress, amount)
+      await tx.wait()
+      
+      setStatus({ type: 'success', message: `Successfully minted ${mintAmount} tokens to smart account!` })
+      // Reload token info
+      await loadTokenInfo()
+    } catch (error) {
+      console.error('Error minting tokens:', error)
+      setStatus({ type: 'error', message: 'Failed to mint tokens' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Execute smart account transaction (demo with token transfer)
+  const executeSmartAccountTx = async () => {
+    if (!accountInfo || !account) {
+      setStatus({ type: 'error', message: 'Please connect wallet and load smart account' })
+      return
+    }
+
+    // Check if connected account is the owner
+    if (account.toLowerCase() !== accountInfo.owner.toLowerCase()) {
+      setStatus({ type: 'error', message: 'You must be the smart account owner to execute transactions' })
+      return
+    }
+
+    try {
+      setLoading(true)
+      const provider = new ethers.BrowserProvider(window.ethereum)
+      const signer = await provider.getSigner()
+      
+      // Create calldata for token transfer (transfer 100 tokens to your wallet)
+      const tokenContract = new ethers.Contract(ERC20_MOCK_ADDRESS, ERC20MockABI)
+      const decimals = tokenInfo?.decimals || 18
+      const transferAmount = ethers.parseUnits('100', decimals)
+      
+      const transferCalldata = tokenContract.interface.encodeFunctionData('transfer', [
+        account, // Transfer to your connected wallet
+        transferAmount
+      ])
+
+      // Execute via smart account
+      const smartAccountContract = new ethers.Contract(accountInfo.address, SmartAccountABI, signer)
+      const tx = await smartAccountContract.execute(
+        ERC20_MOCK_ADDRESS, // destination contract
+        0, // value (0 ETH)
+        transferCalldata // function call data
+      )
+      await tx.wait()
+      
+      setStatus({ type: 'success', message: 'Smart account transaction executed successfully! Transferred 100 tokens to your wallet.' })
+      // Reload token info
+      await loadTokenInfo()
+    } catch (error) {
+      console.error('Error executing smart account transaction:', error)
+      setStatus({ type: 'error', message: 'Failed to execute smart account transaction' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // Load account information
   const loadAccountInfo = async (accountAddress: string) => {
     try {
@@ -159,6 +290,9 @@ export default function Home() {
         nonce: Number(nonce)
       })
       setStatus({ type: 'success', message: 'Account information loaded successfully' })
+      
+      // Also load token info when account info is loaded
+      await loadTokenInfo()
     } catch (error) {
       console.error('Error loading account info:', error)
       setStatus({ type: 'error', message: 'Failed to load account information. Make sure the address is correct.' })
@@ -359,6 +493,82 @@ export default function Home() {
                 <h4>Nonce:</h4>
                 <p>{accountInfo.nonce}</p>
               </div>
+            </div>
+          )}
+
+          {/* ERC20 Token Information & Actions */}
+          {accountInfo && (
+            <div className="card">
+              <h2>ERC20 Mock Token ({ERC20_MOCK_ADDRESS})</h2>
+              {tokenInfo ? (
+                <div>
+                  <div className="account-info">
+                    <h4>Token Name:</h4>
+                    <p>{tokenInfo.name} ({tokenInfo.symbol})</p>
+                    <h4>Total Supply:</h4>
+                    <p>{tokenInfo.totalSupply} {tokenInfo.symbol}</p>
+                    <h4>Smart Account Balance:</h4>
+                    <p>{tokenInfo.smartAccountBalance} {tokenInfo.symbol}</p>
+                    <h4>Your Wallet Balance:</h4>
+                    <p>{tokenInfo.walletBalance} {tokenInfo.symbol}</p>
+                  </div>
+                  
+                  <div style={{ marginTop: '20px' }}>
+                    <h3>Token Actions</h3>
+                    
+                    {/* Mint Tokens */}
+                    <div className="form-group">
+                      <label className="label">Mint Tokens to Smart Account:</label>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <input
+                          type="number"
+                          className="input"
+                          value={mintAmount}
+                          onChange={(e) => setMintAmount(e.target.value)}
+                          placeholder="Amount to mint"
+                          style={{ flex: 1 }}
+                        />
+                        <button
+                          className="button"
+                          onClick={mintTokensToSmartAccount}
+                          disabled={loading || !mintAmount}
+                        >
+                          {loading ? 'Minting...' : 'Mint Tokens'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Execute Smart Account Transaction */}
+                    {account?.toLowerCase() === accountInfo.owner.toLowerCase() && (
+                      <div className="form-group">
+                        <label className="label">Smart Account Execution Demo:</label>
+                        <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>
+                          Execute a transaction through your smart account (transfer 100 tokens to your wallet)
+                        </p>
+                        <button
+                          className="button"
+                          onClick={executeSmartAccountTx}
+                          disabled={loading || parseFloat(tokenInfo.smartAccountBalance) < 100}
+                        >
+                          {loading ? 'Executing...' : 'Execute Smart Account Transfer'}
+                        </button>
+                        {parseFloat(tokenInfo.smartAccountBalance) < 100 && (
+                          <p style={{ fontSize: '12px', color: '#dc2626', marginTop: '4px' }}>
+                            Smart account needs at least 100 tokens to execute this demo
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <p>Loading token information...</p>
+                  <button className="button" onClick={loadTokenInfo} disabled={loading}>
+                    {loading ? 'Loading...' : 'Load Token Info'}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

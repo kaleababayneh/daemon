@@ -19,7 +19,7 @@ const circuit = JSON.parse(
 const FIELD_MODULUS = 21888242871839275222246405745257275088548364400416034343698204186575808495617n; // Prime field order
 
 
-export default async function generateProof(): Promise<any> {
+export default async function generateProof(): Promise<{ proof: Uint8Array, publicInputs: string[] }> {
     const bb = await Barretenberg.new();
 
 
@@ -71,11 +71,11 @@ export default async function generateProof(): Promise<any> {
         }
 
         const { witness } = await noir.execute(input);
-        const { proof } = await honk.generateProof(witness, {
+        const { proof, publicInputs } = await honk.generateProof(witness, {
             keccak: true,
         });
 
-        return proof;
+        return {proof , publicInputs};
     } catch (error) {
         console.error("Error generating proof:", error);
         throw error;
@@ -86,11 +86,11 @@ export default async function generateProof(): Promise<any> {
 (
     async () => {
         generateProof().then((result) => {
-            console.log("Proof:", result);
-              process.exit(0);
+            //console.log("Proof:", result);
+            //process.exit(0);
         }).catch((error) => {
             console.error(error);
-            process.exit(1);
+           // process.exit(1);
         })
     }
 )();
