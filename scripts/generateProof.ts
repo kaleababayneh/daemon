@@ -30,7 +30,7 @@ export default async function generateProof(): Promise<any> {
     const new_owner = new Fr(BigInt("0xdd2fd4581271e230360230f9337d5c0430bf44c0"));
 
 
-    const nullifier_hash = await bb.poseidon2Hash([secret_key,secret_answer_one,current_owner]);
+    const nullifier_hash = await bb.poseidon2Hash([secret_key,secret_answer_two,new_owner,current_owner]);
     const commitment = await generateCommitment();
 
     console.log("Commitment:", commitment.toString());
@@ -74,18 +74,8 @@ export default async function generateProof(): Promise<any> {
         const { proof } = await honk.generateProof(witness, {
             keccak: true,
         });
-        
-        // // Create public inputs array
-        // const publicInputs = [
-        //     nullifier_hash.toBuffer(),
-        // ];
-        
-        // const result = ethers.AbiCoder.defaultAbiCoder().encode(
-        //     ["bytes", "bytes32[]"],
-        //     [proof, publicInputs]
-        // );
 
-        return "Proof generated successfully";
+        return proof;
     } catch (error) {
         console.error("Error generating proof:", error);
         throw error;
