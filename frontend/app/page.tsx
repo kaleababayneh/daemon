@@ -6,6 +6,8 @@ import { SmartAccountABI } from './abis/SmartAccount'
 
 // Contract addresses from deployment
 const SMART_ACCOUNT_ADDRESS = '0xa16E02E87b7454126E5E10d957A927A7F5B5d2be' // Replace with actual address
+const FACTORY_ADDRESS = '0x5fbdb2315678afecb367f032d93f642f64180aa3' // Smart Account Factory
+const ENTRY_POINT_ADDRESS = '0xe7f1725e7734ce288f8367e1bb143e90bb3f0512' // Entry Point
 
 interface AccountInfo {
   address: string
@@ -24,6 +26,7 @@ export default function Home() {
   const [account, setAccount] = useState<string>('')
   const [isConnected, setIsConnected] = useState(false)
   const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null)
+  const [connectedSmartAccounts, setConnectedSmartAccounts] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error', message: string } | null>(null)
   const [recoveryForm, setRecoveryForm] = useState({
@@ -31,6 +34,89 @@ export default function Home() {
     newOwnerAddress: '',
     guardianAddress: '',
   })
+
+  // Find smart accounts associated with the connected wallet
+  const findConnectedSmartAccounts = async (walletAddress: string) => {
+    try {
+      setLoading(true)
+      const provider = new ethers.BrowserProvider(window.ethereum)
+      const foundAccounts: string[] = []
+
+      // Method 1: Check the known smart account address
+      try {
+        const contract = new ethers.Contract(SMART_ACCOUNT_ADDRESS, SmartAccountABI, provider)
+        const [owner, guardian] = await Promise.all([
+          contract.owner(),
+          contract.guardian()
+        ])
+        
+        if (owner.toLowerCase() === walletAddress.toLowerCase() || 
+            guardian.toLowerCase() === walletAddress.toLowerCase()) {
+          foundAccounts.push(SMART_ACCOUNT_ADDRESS)
+        }
+      } catch (error) {
+        console.log('Known smart account not found or error:', error)
+      }
+
+      // Method 2: Calculate potential smart account addresses from factory
+      // Check first few nonces for accounts created by this address
+      for (let nonce = 0; nonce < 5; nonce++) {
+        try {
+          const { getCreateAddress } = ethers
+          const potentialAddress = getCreateAddress({
+            from: FACTORY_ADDRESS,
+            nonce: nonce
+          })
+          
+          // Check if this address has code (is deployed)
+          const code = await provider.getCode(potentialAddress)
+          if (code && code !== '0x') {
+            try {
+              const contract = new ethers.Contract(potentialAddress, SmartAccountABI, provider)
+              const [owner, guardian] = await Promise.all([
+                contract.owner(),
+                contract.guardian()
+              ])
+              
+              if (owner.toLowerCase() === walletAddress.toLowerCase() || 
+                  guardian.toLowerCase() === walletAddress.toLowerCase()) {
+                foundAccounts.push(potentialAddress)
+              }
+            } catch (error) {
+              // Not a smart account or error reading
+              continue
+            }
+          }
+        } catch (error) {
+          continue
+        }
+      }
+
+      setConnectedSmartAccounts(Array.from(new Set(foundAccounts))) // Remove duplicates
+      
+      if (foundAccounts.length > 0) {
+        setStatus({ 
+          type: 'success', 
+          message: `Found ${foundAccounts.length} smart account(s) associated with your wallet!` 
+        })
+        // Auto-load the first one
+        if (foundAccounts[0]) {
+          setRecoveryForm(prev => ({ ...prev, smartAccountAddress: foundAccounts[0] }))
+          await loadAccountInfo(foundAccounts[0])
+        }
+      } else {
+        setStatus({ 
+          type: 'info', 
+          message: 'No smart accounts found associated with your wallet.' 
+        })
+      }
+    } catch (error) {
+      console.error('Error finding smart accounts:', error)
+      setStatus({ type: 'error', message: 'Error scanning for smart accounts' })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // Connect wallet
   const connectWallet = async () => {
@@ -40,6 +126,9 @@ export default function Home() {
         setAccount(accounts[0])
         setIsConnected(true)
         setStatus({ type: 'success', message: 'Wallet connected successfully' })
+        
+        // Automatically find smart accounts
+        await findConnectedSmartAccounts(accounts[0])
       } catch (error) {
         console.error('Error connecting wallet:', error)
         setStatus({ type: 'error', message: 'Failed to connect wallet' })
@@ -175,18 +264,68 @@ export default function Home() {
         ) : (
           <div>
             <p><strong>Connected:</strong> {account}</p>
-            <button className="button button-secondary" onClick={() => setIsConnected(false)}>
-              Disconnect
-            </button>
+            <div className="button-group">
+              <button className="button button-secondary" onClick={() => setIsConnected(false)}>
+                Disconnect
+              </button>
+              <button 
+                className="button button-secondary" 
+                onClick={() => findConnectedSmartAccounts(account)}
+                disabled={loading}
+              >
+                {loading ? 'Scanning...' : 'Refresh Smart Accounts'}
+              </button>
+            </div>
           </div>
         )}
       </div>
 
       {isConnected && (
         <>
+          {/* Connected Smart Accounts */}
+          {connectedSmartAccounts.length > 0 && (
+            <div className="card">
+              <h2>Your Smart Accounts</h2>
+              <p>Found {connectedSmartAccounts.length} smart account(s) associated with your wallet:</p>
+              <div style={{ marginBottom: '16px' }}>
+                {connectedSmartAccounts.map((address, index) => (
+                  <div 
+                    key={address} 
+                    className={`smart-account-item ${recoveryForm.smartAccountAddress === address ? 'selected' : ''}`}
+                  >
+                    <div>
+                      <h4 style={{ margin: '0 0 4px 0', color: '#374151' }}>Smart Account #{index + 1}</h4>
+                      <p style={{ margin: '0', fontFamily: 'monospace', fontSize: '12px', color: '#6b7280' }}>
+                        {address}
+                      </p>
+                    </div>
+                    <button
+                      className="button"
+                      onClick={() => {
+                        setRecoveryForm(prev => ({ ...prev, smartAccountAddress: address }))
+                        loadAccountInfo(address)
+                      }}
+                      disabled={loading}
+                    >
+                      {recoveryForm.smartAccountAddress === address ? 'Selected' : 'Select'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Load Account Info */}
           <div className="card">
-            <h2>Load Smart Account Information</h2>
+            <h2>
+              {connectedSmartAccounts.length > 0 
+                ? 'Load Other Smart Account' 
+                : 'Load Smart Account Information'
+              }
+            </h2>
+            {connectedSmartAccounts.length > 0 && (
+              <p>Or enter a different smart account address manually:</p>
+            )}
             <div className="form-group">
               <label className="label">Smart Account Address:</label>
               <input

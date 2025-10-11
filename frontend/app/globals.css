@@ -123,3 +123,25 @@ body {
   color: #6b7280;
   word-break: break-all;
 }
+
+.smart-account-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  background: #f9fafb;
+}
+
+.smart-account-item.selected {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+
+.button-group {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
