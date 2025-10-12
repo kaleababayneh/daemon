@@ -4,20 +4,18 @@ import { getCreateAddress } from "ethers";
 import { encodeFunctionData, hashMessage } from "viem/utils";
 
 /**
-Base Sepolia Deployment Addresses:
-Poseidon2:           0xc0265D051d8a15F94a33CB90256B7C5A02bc0579
-HonkVerifier:        0xcc716b91e473fCA3f8067da29107E23d7D284A70
-EntryPoint:          0x5987e074c2B22CC2BEdb18A59E36467600cD1549
-SmartAccountFactory: 0x4d25cBbDb71F1bc34D20A421909D399215b99416
-Demo SmartAccount:   0xc2716d0E52EfDa2Ae79b8e45Cb15C55cA119F7d3
-ERC20Mock:           0x4d9B95e1a074414CBd09cf44BB5daEBBeBEc096f
+Linea Sepolia Deployment Addresses:
+Poseidon2:           0xb92036C1E795FA54b13E7679c805915b43c7F089
+HonkVerifier:        0xBf20D4bB442C725f9cBFA30Fb19633ae812A219F
+EntryPoint:          0x501Fe10135Ad30BC6FD25Dbb63F54D98409a1DfC
+SmartAccountFactory: 0x0Ffe1bf8dD812e111c20469C433a20903ACcc4a7
+ERC20Mock:           0xf728e95F5aeEd3DA887ff82F48911BAE263BB0C5
  */
 
 const FACTORY_NONCE = 1;
-const FACTORY_ADDR = "0x4d25cBbDb71F1bc34D20A421909D399215b99416"; // SmartAccountFactory
-const EP_ADDR = "0x5987e074c2B22CC2BEdb18A59E36467600cD1549";      // EntryPoint
-const DEMO_ACCOUNT_ADDR = "0xc2716d0E52EfDa2Ae79b8e45Cb15C55cA119F7d3"; // Demo SmartAccount
-const ERC20Mock_ADDR = "0x4d9B95e1a074414CBd09cf44BB5daEBBeBEc096f"; // ERC20Mock
+const FACTORY_ADDR = "0x0Ffe1bf8dD812e111c20469C433a20903ACcc4a7"; // SmartAccountFactory
+const EP_ADDR = "0x501Fe10135Ad30BC6FD25Dbb63F54D98409a1DfC";      // EntryPoint
+const ERC20Mock_ADDR = "0xf728e95F5aeEd3DA887ff82F48911BAE263BB0C5"; // ERC20Mock
 
 async function main() {
     const [signer0] = await viem.getWalletClients();
@@ -25,31 +23,42 @@ async function main() {
     const entryPoint = await viem.getContractAt("EntryPoint", EP_ADDR);
     const usdc = await viem.getContractAt("ERC20Mock", ERC20Mock_ADDR);
     
-    // Use the demo smart account that was already created during deployment
-    const sender = DEMO_ACCOUNT_ADDR as `0x${string}`;
+    // First, let's create a new smart account using the factory
+    console.log("Creating new smart account...");
+    const AccountFactory = await viem.getContractAt("SmartAccountFactory", FACTORY_ADDR);
+    
+    // Get the expected account address before creating it
+    const expectedAddress = getCreateAddress({
+        from: FACTORY_ADDR,
+        nonce: FACTORY_NONCE
+    });
+    const sender = expectedAddress as `0x${string}`;
+    console.log("Expected smart account address:", sender);
 
-    const nonce = await entryPoint.read.getNonce([sender, 0n]);
-
+    // Check if account already exists
     const accountCode = await publicClient.getCode({ address: sender });
-
+    
     if (!accountCode || accountCode === "0x") {
-        console.log("Smart account not found at expected address. Using factory to create one...");
-        const AccountFactory = await viem.getContractAt("SmartAccountFactory", FACTORY_ADDR);
+        console.log("Creating smart account...");
         const createTx = await AccountFactory.write.createAccount([EP_ADDR]);
         await publicClient.waitForTransactionReceipt({ hash: createTx });
-        console.log("Account created!");
+        console.log("Smart account created at:", sender);
     } else {
-        console.log("Smart account found at:", sender);
+        console.log("Smart account already exists at:", sender);
     }
 
     const Account = await viem.getContractAt("SmartAccount", sender);
+    
+    // Get the nonce for this account
+    const nonce = await entryPoint.read.getNonce([sender, 0n]);
+    console.log("Account nonce:", nonce);
     
     // Check current balance in EntryPoint
     const currentBalance = await entryPoint.read.balanceOf([sender]);
     console.log("Current EntryPoint balance:", currentBalance);
     
     // Fund the account if needed
-    const requiredBalance = 1_000_000_000_000_000n; // 0.001 ETH
+    const requiredBalance = 10_000_000_000_000_000n; // 0.01 ETH (higher for Linea)
     if (currentBalance < requiredBalance) {
         console.log("Funding account...");
         await entryPoint.write.depositTo([sender], { 

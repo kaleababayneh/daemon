@@ -51,6 +51,7 @@ export default async function generateRecoveryProof(
     nullifierHash: string;
     commitment: string;
     publicInputs: string[];
+    newOwner: string;
 }> {
     console.log("🔐 ZK Recovery Proof Generation");
     
@@ -121,7 +122,8 @@ export default async function generateRecoveryProof(
         proof: proofData.proof,
         nullifierHash: nullifier_hash,
         commitment: guardians_commitment,
-        publicInputs: proofData.publicInputs
+        publicInputs: proofData.publicInputs,
+        newOwner: newOwner // Include the new owner used in proof generation
     };
 }
 
@@ -134,7 +136,8 @@ export default async function generateRecoveryProof(
             // Create simplified recovery data package
             const recoveryPackage = {
                 nullifier_hash: result.nullifierHash,
-                zk_proof: `0x${uint8ArrayToHex(result.proof)}`
+                zk_proof: `0x${uint8ArrayToHex(result.proof)}`,
+                new_owner: result.newOwner // Include the new owner that was used in proof generation
             };
 
             // Save to proof.json file

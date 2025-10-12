@@ -4,12 +4,13 @@ import { useState, useEffect } from 'react'
 import { ethers } from 'ethers'
 import { SmartAccountABI } from './abis/SmartAccount'
 import { ERC20MockABI } from './abis/ERC20Mock'
+import { CONTRACT_ADDRESSES } from './config'
 
-// Contract addresses - updated for Base Sepolia deployment
-const SMART_ACCOUNT_ADDRESS = '0xc2716d0E52EfDa2Ae79b8e45Cb15C55cA119F7d3' // Demo smart account
-const FACTORY_ADDRESS = '0x4d25cBbDb71F1bc34D20A421909D399215b99416' // SmartAccountFactory
-const ENTRY_POINT_ADDRESS = '0x5987e074c2B22CC2BEdb18A59E36467600cD1549' // Custom EntryPoint
-const ERC20_MOCK_ADDRESS = '0x4d9B95e1a074414CBd09cf44BB5daEBBeBEc096f' // ERC20Mock for testing
+// Use contract addresses from config
+const SMART_ACCOUNT_ADDRESS = CONTRACT_ADDRESSES.smartAccount
+const FACTORY_ADDRESS = CONTRACT_ADDRESSES.smartAccountFactory  
+const ENTRY_POINT_ADDRESS = CONTRACT_ADDRESSES.entryPoint
+const ERC20_MOCK_ADDRESS = CONTRACT_ADDRESSES.erc20Mock
 
 interface AccountInfo {
   address: string
@@ -124,12 +125,14 @@ export default function Home() {
         // Add a small delay to avoid overwhelming MetaMask
         await new Promise(resolve => setTimeout(resolve, 1000))
         
-        const contract = new ethers.Contract(SMART_ACCOUNT_ADDRESS, SmartAccountABI, provider)
+        // Use checksummed address to avoid ENS resolution
+        const checksummedSmartAccountAddress = ethers.getAddress(SMART_ACCOUNT_ADDRESS)
+        const contract = new ethers.Contract(checksummedSmartAccountAddress, SmartAccountABI, provider)
         const owner = await contract.owner()
         
         // Privacy-first: Only show accounts where connected wallet is the owner
         if (owner.toLowerCase() === walletAddress.toLowerCase()) {
-          foundAccounts.push(SMART_ACCOUNT_ADDRESS)
+          foundAccounts.push(checksummedSmartAccountAddress)
         }
       } catch (error: any) {
         console.log('Smart account check failed:', error.message)
@@ -147,7 +150,7 @@ export default function Home() {
         if (error.message && error.message.includes('Internal JSON-RPC error')) {
           setStatus({ 
             type: 'error', 
-            message: 'MetaMask network error. Please ensure you are connected to Base Sepolia and try again. You may need to switch networks or reset MetaMask.' 
+            message: 'MetaMask network error. Please ensure you are connected to Linea Sepolia and try again. You may need to switch networks or reset MetaMask.' 
           })
           return
         }
@@ -191,25 +194,25 @@ export default function Home() {
   // Check if user is on the correct network and offer to switch
   const checkNetwork = async () => {
     const chainId = await window.ethereum.request({ method: 'eth_chainId' })
-    const supportedChains = ['0x14a34'] // Base Sepolia (84532)
+    const supportedChains = ['0xe705'] // Linea Sepolia (59141)
     if (!supportedChains.includes(chainId)) {
       setStatus({ 
         type: 'error', 
-        message: `Wrong network! Please switch to Base Sepolia (Chain ID: 84532). Current Chain ID: ${parseInt(chainId, 16)}` 
+        message: `Wrong network! Please switch to Linea Sepolia (Chain ID: 59141). Current Chain ID: ${parseInt(chainId, 16)}` 
       })
       return false
     }
     return true
   }
 
-  // Switch to Base Sepolia network
-  const switchToBaseSepolia = async () => {
+  // Switch to Linea Sepolia network
+  const switchToLineaSepolia = async () => {
     try {
       await window.ethereum.request({
         method: 'wallet_switchEthereumChain',
-        params: [{ chainId: '0x14a34' }], // Base Sepolia
+        params: [{ chainId: '0xe705' }], // Linea Sepolia
       })
-      setStatus({ type: 'success', message: 'Switched to Base Sepolia network!' })
+      setStatus({ type: 'success', message: 'Switched to Linea Sepolia network!' })
       return true
     } catch (switchError: any) {
       // This error code indicates that the chain has not been added to MetaMask
@@ -219,26 +222,26 @@ export default function Home() {
             method: 'wallet_addEthereumChain',
             params: [
               {
-                chainId: '0x14a34',
-                chainName: 'Base Sepolia',
+                chainId: '0xe705',
+                chainName: 'Linea Sepolia',
                 nativeCurrency: {
                   name: 'ETH',
                   symbol: 'ETH',
                   decimals: 18,
                 },
-                rpcUrls: ['https://sepolia.base.org'],
-                blockExplorerUrls: ['https://sepolia-explorer.base.org'],
+                rpcUrls: ['https://rpc.sepolia.linea.build'],
+                blockExplorerUrls: ['https://sepolia.lineascan.build'],
               },
             ],
           })
-          setStatus({ type: 'success', message: 'Base Sepolia network added and switched!' })
+          setStatus({ type: 'success', message: 'Linea Sepolia network added and switched!' })
           return true
         } catch (addError) {
-          setStatus({ type: 'error', message: 'Failed to add Base Sepolia network' })
+          setStatus({ type: 'error', message: 'Failed to add Linea Sepolia network' })
           return false
         }
       } else {
-        setStatus({ type: 'error', message: 'Failed to switch to Base Sepolia network' })
+        setStatus({ type: 'error', message: 'Failed to switch to Linea Sepolia network' })
         return false
       }
     }
@@ -302,7 +305,9 @@ export default function Home() {
   const loadTokenInfo = async () => {
     try {
       const provider = new ethers.BrowserProvider(window.ethereum)
-      const tokenContract = new ethers.Contract(ERC20_MOCK_ADDRESS, ERC20MockABI, provider)
+      // Use checksummed address to avoid ENS resolution
+      const checksummedTokenAddress = ethers.getAddress(ERC20_MOCK_ADDRESS)
+      const tokenContract = new ethers.Contract(checksummedTokenAddress, ERC20MockABI, provider)
       
       const [name, symbol, decimals, totalSupply] = await Promise.all([
         tokenContract.name(),
@@ -316,12 +321,14 @@ export default function Home() {
 
       // Get smart account balance if available
       if (recoveryForm.smartAccountAddress) {
-        smartAccountBalance = await tokenContract.balanceOf(recoveryForm.smartAccountAddress)
+        const checksummedSmartAccountAddress = ethers.getAddress(recoveryForm.smartAccountAddress)
+        smartAccountBalance = await tokenContract.balanceOf(checksummedSmartAccountAddress)
       }
 
       // Get wallet balance if connected
       if (account) {
-        walletBalance = await tokenContract.balanceOf(account)
+        const checksummedWalletAddress = ethers.getAddress(account)
+        walletBalance = await tokenContract.balanceOf(checksummedWalletAddress)
       }
 
       setTokenInfo({
@@ -349,12 +356,15 @@ export default function Home() {
       setLoading(true)
       const provider = new ethers.BrowserProvider(window.ethereum)
       const signer = await provider.getSigner()
-      const tokenContract = new ethers.Contract(ERC20_MOCK_ADDRESS, ERC20MockABI, signer)
+      // Use checksummed addresses to avoid ENS resolution
+      const checksummedTokenAddress = ethers.getAddress(ERC20_MOCK_ADDRESS)
+      const checksummedSmartAccountAddress = ethers.getAddress(recoveryForm.smartAccountAddress)
+      const tokenContract = new ethers.Contract(checksummedTokenAddress, ERC20MockABI, signer)
       
       const decimals = tokenInfo?.decimals || 18
       const amount = ethers.parseUnits(mintAmount, decimals)
       
-      const tx = await tokenContract.mint(recoveryForm.smartAccountAddress, amount)
+      const tx = await tokenContract.mint(checksummedSmartAccountAddress, amount)
       await tx.wait()
       
       setStatus({ type: 'success', message: `Successfully minted ${mintAmount} tokens to smart account!` })
@@ -429,7 +439,9 @@ export default function Home() {
       }
       
       const provider = new ethers.BrowserProvider(window.ethereum)
-      const contract = new ethers.Contract(accountAddress, SmartAccountABI, provider)
+      // Use checksummed address to avoid ENS resolution
+      const checksummedAddress = ethers.getAddress(accountAddress)
+      const contract = new ethers.Contract(checksummedAddress, SmartAccountABI, provider)
       
       console.log('Fetching owner from smart contract...')
       
@@ -512,7 +524,9 @@ export default function Home() {
       
       const provider = new ethers.BrowserProvider(window.ethereum)
       const signer = await provider.getSigner()
-      const contract = new ethers.Contract(recoveryForm.smartAccountAddress, SmartAccountABI, signer)
+      // Use checksummed address to avoid ENS resolution
+      const checksummedAddress = ethers.getAddress(recoveryForm.smartAccountAddress)
+      const contract = new ethers.Contract(checksummedAddress, SmartAccountABI, signer)
       
       console.log('Setting guardian commitment:', recoveryForm.guardianCommitment)
       console.log('Smart account address:', recoveryForm.smartAccountAddress)
@@ -666,12 +680,21 @@ export default function Home() {
       const provider = new ethers.BrowserProvider(window.ethereum)
       const signer = await provider.getSigner()
       
-      // Call ZK recover function with higher gas settings for faster execution
-      const contract = new ethers.Contract(recoveryForm.recoveryTargetAddress, SmartAccountABI, signer)
+      // Convert addresses to checksummed format to avoid ENS resolution
+      const checksummedNewOwner = ethers.getAddress(recoveryForm.newOwnerAddress)
+      const checksummedTargetAddress = ethers.getAddress(recoveryForm.recoveryTargetAddress)
       
-      // Estimate gas first, then add buffer
+      console.log('Using checksummed addresses:', {
+        newOwner: checksummedNewOwner,
+        target: checksummedTargetAddress
+      })
+      
+      // Call ZK recover function with higher gas settings for faster execution
+      const contract = new ethers.Contract(checksummedTargetAddress, SmartAccountABI, signer)
+      
+      // Estimate gas first, then add buffer - use checksummed addresses to avoid ENS resolution
       const estimatedGas = await contract['recoverAccount(address,uint256,bytes32,bytes)'].estimateGas(
-        recoveryForm.newOwnerAddress,
+        checksummedNewOwner,
         0,
         recoveryForm.nullifierHash,
         recoveryForm.zkProof
@@ -679,16 +702,16 @@ export default function Home() {
       
       console.log('Estimated gas:', estimatedGas.toString())
       
-      // Execute with optimized gas settings for Base Sepolia
+      // Execute with optimized gas settings for Linea Sepolia
       const tx = await contract['recoverAccount(address,uint256,bytes32,bytes)'](
-        recoveryForm.newOwnerAddress,
+        checksummedNewOwner,
         0,
         recoveryForm.nullifierHash,
         recoveryForm.zkProof,
         {
           gasLimit: estimatedGas * BigInt(150) / BigInt(100), // 50% buffer for ZK verification
-          maxFeePerGas: ethers.parseUnits('5', 'gwei'), // Base Sepolia optimized gas
-          maxPriorityFeePerGas: ethers.parseUnits('2', 'gwei'), // Base Sepolia optimized priority
+          maxFeePerGas: ethers.parseUnits('8', 'gwei'), // Linea Sepolia optimized gas
+          maxPriorityFeePerGas: ethers.parseUnits('5', 'gwei'), // Linea Sepolia optimized priority
         }
       )
       
@@ -698,8 +721,8 @@ export default function Home() {
       await tx.wait()
       
       setStatus({ type: 'success', message: 'Account recovered successfully using ZK proof!' })
-      // Reload account info
-      await loadAccountInfo(recoveryForm.recoveryTargetAddress)
+      // Reload account info with checksummed address
+      await loadAccountInfo(checksummedTargetAddress)
     } catch (error) {
       console.error('Error recovering account with ZK:', error)
       setStatus({ type: 'error', message: 'Failed to recover account with ZK proof. Please check your nullifier hash and proof.' })
@@ -808,13 +831,13 @@ export default function Home() {
               <div style={{ backgroundColor: '#f0f8ff', padding: '10px', borderRadius: '4px', marginBottom: '10px' }}>
                 <p><strong>💡 Hint:</strong> Based on our deployment, your smart account should be at:</p>
                 <p style={{ fontFamily: 'monospace', fontSize: '14px', backgroundColor: '#fff', padding: '5px', borderRadius: '3px' }}>
-                  0xa16E02E87b7454126E5E10d957A927A7F5B5d2be
+                  {SMART_ACCOUNT_ADDRESS}
                 </p>
                 <button 
                   className="button" 
                   style={{ fontSize: '12px', padding: '5px 10px', marginTop: '5px' }}
                   onClick={() => {
-                    setRecoveryForm(prev => ({ ...prev, smartAccountAddress: '0xa16E02E87b7454126E5E10d957A927A7F5B5d2be' }))
+                    setRecoveryForm(prev => ({ ...prev, smartAccountAddress: SMART_ACCOUNT_ADDRESS }))
                   }}
                 >
                   Use This Address

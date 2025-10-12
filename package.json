@@ -16,7 +16,8 @@
     "@noir-lang/noir_js": "1.0.0-beta.3",
     "@openzeppelin/contracts": "^5.0.2",
     "dotenv": "^17.2.3",
-    "hardhat": "^3.0.7"
+    "hardhat": "^3.0.7",
+    "wagmi": "^2.18.0"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ignition": "^3.0.3",
