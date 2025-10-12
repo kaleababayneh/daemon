@@ -45,6 +45,8 @@ export default function Home() {
   const [recoveryForm, setRecoveryForm] = useState({
     smartAccountAddress: '',
     newOwnerAddress: '',
+    // Recovery target address (manual input)
+    recoveryTargetAddress: '',
     // ZK Recovery fields only
     guardianCommitment: '',
     guardianCommitmentForRecovery: '', // Commitment hash for recovery
@@ -607,13 +609,13 @@ export default function Home() {
 
   // ZK Recovery function
   const recoverAccountZK = async () => {
-    if (!isConnected || !account || !accountInfo) {
+    if (!isConnected || !account) {
       setStatus({ type: 'error', message: 'Please connect your wallet and load account info' })
       return
     }
 
-    if (!recoveryForm.nullifierHash || !recoveryForm.zkProof) {
-      setStatus({ type: 'error', message: 'Please provide nullifier hash and ZK proof' })
+    if (!recoveryForm.nullifierHash || !recoveryForm.zkProof || !recoveryForm.recoveryTargetAddress) {
+      setStatus({ type: 'error', message: 'Please provide nullifier hash, ZK proof, and target smart account address' })
       return
     }
 
@@ -623,10 +625,10 @@ export default function Home() {
       const signer = await provider.getSigner()
       
       // Call ZK recover function - specify the exact function signature
-      const contract = new ethers.Contract(accountInfo.address, SmartAccountABI, signer)
+      const contract = new ethers.Contract(recoveryForm.recoveryTargetAddress, SmartAccountABI, signer)
       const tx = await contract['recoverAccount(address,uint256,bytes32,bytes)'](
         recoveryForm.newOwnerAddress,
-        accountInfo.nonce,
+        0,
         recoveryForm.nullifierHash,
         recoveryForm.zkProof
       )
@@ -634,7 +636,7 @@ export default function Home() {
       
       setStatus({ type: 'success', message: 'Account recovered successfully using ZK proof!' })
       // Reload account info
-      await loadAccountInfo(accountInfo.address)
+      await loadAccountInfo(recoveryForm.recoveryTargetAddress)
     } catch (error) {
       console.error('Error recovering account with ZK:', error)
       setStatus({ type: 'error', message: 'Failed to recover account with ZK proof. Please check your nullifier hash and proof.' })
@@ -673,22 +675,7 @@ export default function Home() {
     <div className="container">
       <h1>Privacy Preserving Smart Account Recovery</h1>
       
-      {/* Privacy Notice */}
-      <div className="card" style={{ 
-        backgroundColor: '#f8f9fa', 
-        border: '1px solid #e9ecef', 
-        marginBottom: '24px' 
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
-          <span style={{ fontSize: '24px', marginRight: '8px' }}>🔒</span>
-          <h3 style={{ margin: 0, color: '#495057' }}>Privacy Protection</h3>
-        </div>
-        <p style={{ margin: 0, color: '#6c757d', fontSize: '14px' }}>
-          This application respects your privacy. Smart account information is only visible to the account owner. 
-          Non-owners will see an access denied message to protect sensitive information.
-        </p>
-      </div>
-      
+
       {/* Wallet Connection */}
       <div className="card">
         <h2>Wallet Connection</h2>
@@ -943,7 +930,7 @@ export default function Home() {
           )}
 
           {/* ZK Account Recovery */}
-          {accountInfo && (
+          {true && (
             <div className="card">
               <h2>ZK Account Recovery</h2>
               <p>Recover this account using ZK proof data from a guardian.</p>
@@ -973,6 +960,32 @@ export default function Home() {
                   />
                   <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
                     Guardian should run: <code>npx tsx generateRecoveryHashandProof.ts</code> to generate <code>proof.json</code>
+                  </p>
+                </div>
+              </div>
+
+              {/* Manual Smart Account Address Input */}
+              <div style={{ backgroundColor: '#fff7ed', padding: '15px', borderRadius: '4px', margin: '15px 0' }}>
+                <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>🎯 Target Smart Account</h3>
+                <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 10px 0' }}>
+                  Enter the smart account address you want to recover:
+                </p>
+                
+                <div className="form-group">
+                  <label className="label">Smart Account Address to Recover:</label>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="0x..."
+                    value={recoveryForm.recoveryTargetAddress}
+                    onChange={(e) => setRecoveryForm(prev => ({ ...prev, recoveryTargetAddress: e.target.value }))}
+                    style={{ 
+                      fontFamily: 'monospace',
+                      fontSize: '14px'
+                    }}
+                  />
+                  <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                    This is the smart account you want to recover ownership of using ZK proof
                   </p>
                 </div>
               </div>
@@ -1043,14 +1056,14 @@ export default function Home() {
               <button
                 className="button"
                 onClick={recoverAccountZK}
-                disabled={loading || !recoveryForm.newOwnerAddress || !recoveryForm.nullifierHash || !recoveryForm.guardianCommitmentForRecovery || !recoveryForm.zkProof}
+                disabled={loading || !recoveryForm.newOwnerAddress || !recoveryForm.nullifierHash || !recoveryForm.zkProof || !recoveryForm.recoveryTargetAddress}
                 style={{ backgroundColor: '#dc2626', color: 'white', fontSize: '16px', padding: '12px 24px' }}
               >
                 {loading ? 'Recovering Account...' : '🔓 Execute ZK Recovery'}
               </button>
               
               <p style={{ fontSize: '12px', color: '#dc2626', marginTop: '8px', fontWeight: '500' }}>
-                ⚠️ This will transfer ownership to your connected wallet ({account ? `${account.slice(0,6)}...${account.slice(-4)}` : 'your address'}). Make sure all details are correct!
+                ⚠️ This will transfer ownership of {recoveryForm.recoveryTargetAddress ? `${recoveryForm.recoveryTargetAddress.slice(0,6)}...${recoveryForm.recoveryTargetAddress.slice(-4)}` : 'the target smart account'} to your connected wallet ({account ? `${account.slice(0,6)}...${account.slice(-4)}` : 'your address'}). Make sure all details are correct!
               </p>
             </div>
           )}

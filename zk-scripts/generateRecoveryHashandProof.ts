@@ -45,7 +45,7 @@ const circuit_path = path.join(projectRoot, "circuits/target/circuits.json");
 
 export default async function generateRecoveryProof(
     currentOwner: string = "0x945dc407f256015329D5E38BE8367278a4ab072c", // Linea testnet owner
-    newOwner: string = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"     // New owner (can be changed)
+    newOwner: string = "0x3749E100946fde968aA4c9BF0f43f5FD0D312aDa"     // New owner (can be changed)
 ): Promise<{
     proof: Uint8Array;
     nullifierHash: string;
@@ -53,8 +53,6 @@ export default async function generateRecoveryProof(
     publicInputs: string[];
 }> {
     console.log("🔐 ZK Recovery Proof Generation");
-    console.log("===============================");
-    console.log("");
     
     // Load circuit
     const circuit = JSON.parse(fs.readFileSync(circuit_path, "utf-8"));
@@ -85,10 +83,6 @@ export default async function generateRecoveryProof(
     console.log("🧮 Circuit Inputs:");
     console.log(`   nullifier_hash: ${nullifier_hash}`);
     console.log(`   guardians_commitment: ${guardians_commitment}`);
-    console.log(`   new_owner: ${newOwnerConverted}`);
-    console.log(`   current_owner: ${currentOwnerConverted}`);
-    console.log(`   secret_answer: ${secret_answer.toString()}`);
-    console.log(`   secret_key: ${secret_key.toString()}`);
     console.log("");
 
     // Prepare circuit inputs
@@ -114,15 +108,12 @@ export default async function generateRecoveryProof(
 
     // Verify the proof
     console.log("🔍 Verifying proof...");
-    //const verification = await bb.verifyProof(proofData);
-    //console.log(`   Verification result: ${verification ? '✅ Valid' : '❌ Invalid'}`);
+    
     console.log("");
 
     console.log("📦 Generated Proof Data:");
     console.log("========================");
-    console.log(`Nullifier Hash: ${nullifier_hash}`);
-    console.log(`Commitment: ${guardians_commitment}`);
-    console.log("");
+   
 
     await bb.destroy();
 
