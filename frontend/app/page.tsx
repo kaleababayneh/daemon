@@ -84,14 +84,15 @@ export default function Home() {
           setIsConnected(true)
           console.log('MetaMask already connected:', accounts[0])
           
-          // Skip automatic smart account detection to avoid RPC errors
-          // Instead, hardcode the known smart account
-          setConnectedSmartAccounts([SMART_ACCOUNT_ADDRESS])
-          setRecoveryForm(prev => ({ ...prev, smartAccountAddress: SMART_ACCOUNT_ADDRESS }))
-          setStatus({ 
-            type: 'success', 
-            message: 'Wallet connected! Using known smart account.' 
-          })
+          // Find smart accounts owned by this wallet
+          if (!skipAutoDetection) {
+            await findConnectedSmartAccounts(accounts[0])
+          } else {
+            setStatus({ 
+              type: 'info', 
+              message: 'Wallet connected! Auto-detection skipped. Enter smart account address manually below.' 
+            })
+          }
         }
       } catch (error) {
         console.error('Error checking MetaMask connection:', error)
@@ -122,13 +123,10 @@ export default function Home() {
         await new Promise(resolve => setTimeout(resolve, 1000))
         
         const contract = new ethers.Contract(SMART_ACCOUNT_ADDRESS, SmartAccountABI, provider)
-        const [owner, guardian] = await Promise.all([
-          contract.owner(),
-          contract.guardian()
-        ])
+        const owner = await contract.owner()
         
-        if (owner.toLowerCase() === walletAddress.toLowerCase() || 
-            guardian.toLowerCase() === walletAddress.toLowerCase()) {
+        // Privacy-first: Only show accounts where connected wallet is the owner
+        if (owner.toLowerCase() === walletAddress.toLowerCase()) {
           foundAccounts.push(SMART_ACCOUNT_ADDRESS)
         }
       } catch (error: any) {
@@ -167,14 +165,14 @@ export default function Home() {
       if (foundAccounts.length > 0) {
         setStatus({ 
           type: 'success', 
-          message: `Found smart account associated with your wallet!` 
+          message: `Found ${foundAccounts.length} smart account(s) owned by your wallet!` 
         })
         setRecoveryForm(prev => ({ ...prev, smartAccountAddress: foundAccounts[0] }))
         await loadAccountInfo(foundAccounts[0])
       } else {
         setStatus({ 
           type: 'info', 
-          message: 'No smart accounts found. You can manually enter a smart account address below.' 
+          message: 'No smart accounts owned by your wallet found. You can manually enter a smart account address below (only if you own it).' 
         })
       }
     } catch (error: any) {
@@ -223,21 +221,16 @@ export default function Home() {
         setStatus({ type: 'success', message: 'Wallet connected successfully' })
         console.log('Connected:', accounts[0])
         
-        // Skip automatic smart account detection to avoid MetaMask RPC errors
-        // Hardcode the known smart account instead
-        setConnectedSmartAccounts([SMART_ACCOUNT_ADDRESS])
-        setRecoveryForm(prev => ({ ...prev, smartAccountAddress: SMART_ACCOUNT_ADDRESS }))
-        setStatus({ 
-          type: 'success', 
-          message: 'Wallet connected! Using known smart account: ' + SMART_ACCOUNT_ADDRESS.slice(0, 10) + '...' 
-        })
-        
-        // Try to load account info, but don't fail if it errors
-        try {
-          await loadAccountInfo(SMART_ACCOUNT_ADDRESS)
-        } catch (error) {
-          console.log('Could not load account info, but continuing anyway:', error)
+        // Find smart accounts owned by this wallet
+        if (!skipAutoDetection) {
+          await findConnectedSmartAccounts(accounts[0])
+        } else {
+          setStatus({ 
+            type: 'info', 
+            message: 'Wallet connected! Auto-detection skipped. Enter smart account address manually below.' 
+          })
         }
+        
       } catch (error: any) {
         console.error('Error connecting wallet:', error)
         if (error.code === 4001) {
@@ -385,18 +378,40 @@ export default function Home() {
       setLoading(true)
       setStatus({ type: 'info', message: 'Loading account information...' })
       
+      if (!account) {
+        setStatus({ type: 'error', message: 'Please connect your wallet first' })
+        setLoading(false)
+        return
+      }
+      
       const provider = new ethers.BrowserProvider(window.ethereum)
       const contract = new ethers.Contract(accountAddress, SmartAccountABI, provider)
       
-      console.log('Fetching real data from smart contract...')
+      console.log('Fetching owner from smart contract...')
       
-      // Actually fetch the real data from the smart contract
-      const [owner, guardianCommitment] = await Promise.all([
-        contract.owner(),
+      // First, check who the owner is
+      const owner = await contract.owner()
+      console.log('Smart account owner:', owner)
+      console.log('Connected wallet:', account)
+      
+      // Privacy check: Only show account info if the connected wallet is the owner
+      if (account.toLowerCase() !== owner.toLowerCase()) {
+        setStatus({ 
+          type: 'error', 
+          message: `Access Denied: This smart account is owned by ${owner.slice(0, 6)}...${owner.slice(-4)}. Only the owner can view account information for privacy.` 
+        })
+        setAccountInfo(null)
+        setLoading(false)
+        return
+      }
+      
+      console.log('✅ Owner verification passed - loading account details...')
+      
+      // Only if owner verification passes, load the full account info
+      const [guardianCommitment] = await Promise.all([
         contract.getGuardianCommitments()
       ])
       
-      console.log('Fetched owner:', owner)
       console.log('Fetched guardian commitment:', guardianCommitment)
       
       // Get nonce (using 0 for simplicity since nonce queries can be complex)
@@ -657,6 +672,22 @@ export default function Home() {
   return (
     <div className="container">
       <h1>Privacy Preserving Smart Account Recovery</h1>
+      
+      {/* Privacy Notice */}
+      <div className="card" style={{ 
+        backgroundColor: '#f8f9fa', 
+        border: '1px solid #e9ecef', 
+        marginBottom: '24px' 
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
+          <span style={{ fontSize: '24px', marginRight: '8px' }}>🔒</span>
+          <h3 style={{ margin: 0, color: '#495057' }}>Privacy Protection</h3>
+        </div>
+        <p style={{ margin: 0, color: '#6c757d', fontSize: '14px' }}>
+          This application respects your privacy. Smart account information is only visible to the account owner. 
+          Non-owners will see an access denied message to protect sensitive information.
+        </p>
+      </div>
       
       {/* Wallet Connection */}
       <div className="card">
