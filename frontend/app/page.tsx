@@ -580,67 +580,19 @@ export default function Home() {
       setZkProgress('Loading ZK modules...')
       
       // Dynamic import for client-side only
-      const { generateCommitmentHash } = await import('../utils/zkProofs')
       
       setZkProgress('Generating commitment hash...')
       
-      const commitment = await generateCommitmentHash(
-        guardianForm.secretKey,
-        guardianForm.secretAnswer
-      )
+   
       
       setStatus({ 
         type: 'success', 
-        message: `Guardian commitment generated: ${commitment}` 
+        message: `Guardian commitment generated: ${''}...` 
       })
       setZkProgress('')
     } catch (error) {
       console.error('Error generating commitment:', error)
       setStatus({ type: 'error', message: 'Failed to generate commitment hash' })
-      setZkProgress('')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const generateRecoveryZKProof = async () => {
-    try {
-      setLoading(true)
-      
-      if (!guardianForm.currentOwner || !guardianForm.newOwner) {
-        setStatus({ type: 'error', message: 'Please provide current and new owner addresses' })
-        return
-      }
-      
-      setZkProgress('Loading ZK modules...')
-      
-      // Dynamic import for client-side only
-      const { generateRecoveryProof } = await import('../utils/zkProofs')
-      
-      const result = await generateRecoveryProof(
-        guardianForm.secretKey,
-        guardianForm.secretAnswer,
-        guardianForm.currentOwner,
-        guardianForm.newOwner,
-        setZkProgress
-      )
-      
-      // Auto-fill the recovery form
-      setRecoveryForm(prev => ({
-        ...prev,
-        newOwnerAddress: guardianForm.newOwner,
-        nullifierHash: result.nullifierHash,
-        zkProof: result.zkProof
-      }))
-      
-      setStatus({ 
-        type: 'success', 
-        message: `ZK proof generated successfully! Nullifier: ${result.nullifierHash.slice(0, 10)}...` 
-      })
-      setZkProgress('')
-    } catch (error) {
-      console.error('Error generating ZK proof:', error)
-      setStatus({ type: 'error', message: 'Failed to generate ZK proof. Make sure the circuit is loaded correctly.' })
       setZkProgress('')
     } finally {
       setLoading(false)
