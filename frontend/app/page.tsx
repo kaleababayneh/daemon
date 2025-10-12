@@ -5,13 +5,11 @@ import { ethers } from 'ethers'
 import { SmartAccountABI } from './abis/SmartAccount'
 import { ERC20MockABI } from './abis/ERC20Mock'
 
-// Contract addresses from ZK deployment
-// Calculated smart account address using getCreateAddress with FACTORY_NONCE = 1
-// This smart account is created by running: npx hardhat run zk-scripts/execute.ts --network localhost
-const SMART_ACCOUNT_ADDRESS = '0xd8058efe0198ae9dD7D563e1b4938Dcbc86A1F81' // Hardcoded known address
-const FACTORY_ADDRESS = '0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9' // Smart Account Factory
-const ENTRY_POINT_ADDRESS = '0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0' // Entry Point
-const ERC20_MOCK_ADDRESS = '0x5fc8d32690cc91d4c39d9d3abcbd16989f875707' // ERC20 Mock Token
+// Contract addresses from Linea testnet deployment
+const SMART_ACCOUNT_ADDRESS = '0x8beb6669E487FDb09CE67F581d427AaC01D3cb50' // Created smart account
+const FACTORY_ADDRESS = '0xc729bbd894d27a8330eb91bb41d7965fac3ce33a' // Smart Account Factory
+const ENTRY_POINT_ADDRESS = '0x470d5588fd69f3d4eb4d82f950d483a7be9131a4' // Entry Point
+const ERC20_MOCK_ADDRESS = '0xc0265d051d8a15f94a33cb90256b7c5a02bc0579' // ERC20 Mock Token
 
 interface AccountInfo {
   address: string
@@ -192,24 +190,16 @@ export default function Home() {
 
   // Check if user is on the correct network
   const checkNetwork = async () => {
-    if (typeof window.ethereum !== 'undefined') {
-      try {
-        const chainId = await window.ethereum.request({ method: 'eth_chainId' })
-        // Hardhat localhost typically uses chainId 31337 (0x7a69)
-        if (chainId !== '0x7a69') {
-          setStatus({ 
-            type: 'error', 
-            message: `Wrong network! Please switch to Hardhat localhost (Chain ID: 31337). Current Chain ID: ${parseInt(chainId, 16)}` 
-          })
-          return false
-        }
-        return true
-      } catch (error) {
-        console.error('Error checking network:', error)
-        return false
-      }
+    const chainId = await window.ethereum.request({ method: 'eth_chainId' })
+    const supportedChains = ['0xe705'] // Linea testnet (59141)
+    if (!supportedChains.includes(chainId)) {
+      setStatus({ 
+        type: 'error', 
+        message: `Wrong network! Please switch to Linea testnet (Chain ID: 59141). Current Chain ID: ${parseInt(chainId, 16)}` 
+      })
+      return false
     }
-    return false
+    return true
   }
 
   // Connect wallet
@@ -666,7 +656,7 @@ export default function Home() {
 
   return (
     <div className="container">
-      <h1>Smart Account Recovery</h1>
+      <h1>Privacy Preserving Smart Account Recovery</h1>
       
       {/* Wallet Connection */}
       <div className="card">
@@ -681,21 +671,6 @@ export default function Home() {
             <div className="button-group">
               <button className="button button-secondary" onClick={disconnectWallet}>
                 Disconnect
-              </button>
-              <button 
-                className="button button-secondary" 
-                onClick={() => {
-                  // Instead of scanning, just set the known smart account
-                  setConnectedSmartAccounts([SMART_ACCOUNT_ADDRESS])
-                  setRecoveryForm(prev => ({ ...prev, smartAccountAddress: SMART_ACCOUNT_ADDRESS }))
-                  setStatus({ 
-                    type: 'success', 
-                    message: 'Using known smart account: ' + SMART_ACCOUNT_ADDRESS.slice(0, 10) + '...' 
-                  })
-                }}
-                disabled={loading}
-              >
-                Use Known Smart Account
               </button>
             </div>
           </div>
@@ -1049,26 +1024,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* Instructions for non-owners */}
-          {accountInfo && 
-           account?.toLowerCase() !== accountInfo.owner.toLowerCase() && (
-            <div className="card">
-              <h2>Testing ZK Recovery</h2>
-              <p>You're viewing as a non-owner. To test ZK recovery:</p>
-              <div style={{ backgroundColor: '#f0f8ff', padding: '15px', borderRadius: '4px', margin: '10px 0' }}>
-                <h4>Step 1: Import Owner Account</h4>
-                <p>Import this private key into MetaMask:</p>
-                <code style={{ backgroundColor: '#fff', padding: '8px', display: 'block', borderRadius: '4px', fontSize: '12px', wordBreak: 'break-all' }}>
-                  0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-                </code>
-                <p style={{ fontSize: '12px', marginTop: '5px' }}>This is Hardhat's default account #1 (safe for testing)</p>
-              </div>
-              <div style={{ backgroundColor: '#f0fdf4', padding: '15px', borderRadius: '4px', margin: '10px 0' }}>
-                <h4>Step 2: Set Guardian Commitment</h4>
-                <p>Use the owner account to set a guardian commitment hash, then use the guardian helper scripts to generate nullifier and ZK proof for recovery.</p>
-              </div>
-            </div>
-          )}
+    
         </>
       )}
 

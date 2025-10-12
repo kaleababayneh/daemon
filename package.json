@@ -12,10 +12,11 @@
   "type": "module",
   "dependencies": {
     "@account-abstraction/contracts": "^0.7.0",
-    "@openzeppelin/contracts": "^5.0.2",
-    "hardhat": "^3.0.7",
     "@aztec/bb.js": "0.82.2",
-    "@noir-lang/noir_js": "1.0.0-beta.3"
+    "@noir-lang/noir_js": "1.0.0-beta.3",
+    "@openzeppelin/contracts": "^5.0.2",
+    "dotenv": "^17.2.3",
+    "hardhat": "^3.0.7"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ignition": "^3.0.3",
