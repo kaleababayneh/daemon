@@ -49,6 +49,7 @@ export default function Home() {
     newOwnerAddress: '',
     // ZK Recovery fields only
     guardianCommitment: '',
+    guardianCommitmentForRecovery: '', // Commitment hash for recovery
     nullifierHash: '',
     zkProof: '',
     // Recovery data from guardian (copy-paste format)
@@ -542,6 +543,63 @@ export default function Home() {
     }
   }
 
+  // File upload handler for proof.json
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    if (!file.name.endsWith('.json')) {
+      setStatus({ type: 'error', message: 'Please select a JSON file' })
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = async (e) => {
+      try {
+        const content = e.target?.result as string
+        const recoveryPackage = JSON.parse(content)
+        
+        // Validate required fields for simplified format
+        if (!recoveryPackage.nullifier_hash || !recoveryPackage.zk_proof) {
+          throw new Error('Invalid recovery file - missing nullifier_hash or zk_proof')
+        }
+
+        // Get the guardian commitment from the smart contract
+        let guardianCommitment = ''
+        if (accountInfo) {
+          guardianCommitment = accountInfo.guardianCommitment
+        }
+
+        // Auto-fill the form with parsed data
+        setRecoveryForm(prev => ({
+          ...prev,
+          nullifierHash: recoveryPackage.nullifier_hash,
+          zkProof: recoveryPackage.zk_proof,
+          newOwnerAddress: account || '', // Use connected wallet as new owner
+          guardianCommitmentForRecovery: guardianCommitment,
+        }))
+
+        setStatus({ 
+          type: 'success', 
+          message: `✅ Recovery file uploaded successfully! Ready to recover to your wallet (${account?.slice(0,6)}...${account?.slice(-4)})` 
+        })
+
+        console.log('Loaded recovery package:', {
+          nullifier_hash: recoveryPackage.nullifier_hash,
+          zk_proof: recoveryPackage.zk_proof.slice(0, 50) + '...',
+          new_owner: account,
+          guardian_commitment: guardianCommitment
+        })
+
+      } catch (error: any) {
+        setStatus({ type: 'error', message: `Failed to read recovery file: ${error.message}` })
+        console.error('File upload error:', error)
+      }
+    }
+    
+    reader.readAsText(file)
+  }
+
   // ZK Recovery function
   const recoverAccountZK = async () => {
     if (!isConnected || !account || !accountInfo) {
@@ -884,68 +942,102 @@ export default function Home() {
               <h2>ZK Account Recovery</h2>
               <p>Recover this account using ZK proof data from a guardian.</p>
               
-            
-
-              {/* Option 2: Manual Entry */}
-              <div style={{ backgroundColor: '#fef3cd', padding: '15px', borderRadius: '4px', margin: '15px 0' }}>
-                <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>✏️ Recovery</h3>
+              {/* File Upload Recovery */}
+              <div style={{ backgroundColor: '#f0f8ff', padding: '15px', borderRadius: '4px', margin: '15px 0' }}>
+                <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>📁 Upload Recovery File</h3>
                 <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 10px 0' }}>
-                  Manually enter recovery details from your guardian (you will become the new owner):
+                  Upload the <code>proof.json</code> file from your guardian:
                 </p>
-              
+                
                 <div className="form-group">
-                  <label className="label">New Owner Address (You):</label>
+                  <label className="label">Recovery Proof File:</label>
                   <input
-                    type="text"
-                    className="input"
-                    value={recoveryForm.newOwnerAddress || account || 'Connect wallet first...'}
-                    readOnly
+                    type="file"
+                    accept=".json"
+                    onChange={handleFileUpload}
                     style={{ 
-                      backgroundColor: '#f9f9f9', 
-                      cursor: 'not-allowed',
-                      color: '#4b5563'
+                      padding: '12px',
+                      border: '2px dashed #e5e7eb',
+                      borderRadius: '8px',
+                      backgroundColor: '#f9f9f9',
+                      width: '100%',
+                      cursor: 'pointer',
+                      fontSize: '14px'
                     }}
                   />
-                  <p style={{ fontSize: '12px', color: '#10b981', marginTop: '4px' }}>
-                    ✅ This is automatically set to your connected wallet address. You will become the new owner.
-                  </p>
-                </div>
-                
-                <div className="form-group">
-                  <label className="label">Nullifier Hash:</label>
-                  <input
-                    type="text"
-                    className="input"
-                    value={recoveryForm.nullifierHash}
-                    onChange={(e) => setRecoveryForm({ ...recoveryForm, nullifierHash: e.target.value })}
-                    placeholder="0x..."
-                  />
                   <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-                    This should be provided by the guardian along with the ZK proof.
-                  </p>
-                </div>
-                
-                <div className="form-group">
-                  <label className="label">ZK Proof:</label>
-                  <textarea
-                    className="input"
-                    value={recoveryForm.zkProof}
-                    onChange={(e) => setRecoveryForm({ ...recoveryForm, zkProof: e.target.value })}
-                    placeholder="0x..."
-                    rows={3}
-                    style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '12px' }}
-                  />
-                  <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-                    The ZK proof generated by the guardian for this recovery.
+                    Guardian should run: <code>npx tsx generateRecoveryHashandProof.ts</code> to generate <code>proof.json</code>
                   </p>
                 </div>
               </div>
-              
+
+              {/* Show Recovery Details after file upload */}
+              {recoveryForm.nullifierHash && (
+                <div style={{ backgroundColor: '#f0fdf4', padding: '15px', borderRadius: '4px', margin: '15px 0' }}>
+                  <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>✅ Recovery Details Loaded</h3>
+                  
+                  <div className="form-group">
+                    <label className="label">New Owner Address (You):</label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={recoveryForm.newOwnerAddress || account || 'Connect wallet first...'}
+                      readOnly
+                      style={{ 
+                        backgroundColor: '#f9f9f9', 
+                        cursor: 'not-allowed',
+                        color: '#4b5563'
+                      }}
+                    />
+                    <p style={{ fontSize: '12px', color: '#10b981', marginTop: '4px' }}>
+                      ✅ This is automatically set to your connected wallet address. You will become the new owner.
+                    </p>
+                  </div>
+                  
+                  <div className="form-group">
+                    <label className="label">Nullifier Hash:</label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={recoveryForm.nullifierHash}
+                      readOnly
+                      style={{ 
+                        backgroundColor: '#f9f9f9', 
+                        cursor: 'not-allowed',
+                        color: '#4b5563',
+                        fontFamily: 'monospace',
+                        fontSize: '12px'
+                      }}
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label className="label">ZK Proof:</label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={recoveryForm.zkProof ? `${recoveryForm.zkProof.slice(0, 50)}...` : ''}
+                      readOnly
+                      style={{ 
+                        backgroundColor: '#f9f9f9', 
+                        cursor: 'not-allowed',
+                        color: '#4b5563',
+                        fontFamily: 'monospace',
+                        fontSize: '12px'
+                      }}
+                    />
+                    <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                      ZK proof loaded ({recoveryForm.zkProof ? Math.floor(recoveryForm.zkProof.length / 2) : 0} bytes)
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Submit Recovery */}
               <button
                 className="button"
                 onClick={recoverAccountZK}
-                disabled={loading || !recoveryForm.newOwnerAddress || !recoveryForm.nullifierHash || !recoveryForm.zkProof}
+                disabled={loading || !recoveryForm.newOwnerAddress || !recoveryForm.nullifierHash || !recoveryForm.guardianCommitmentForRecovery || !recoveryForm.zkProof}
                 style={{ backgroundColor: '#dc2626', color: 'white', fontSize: '16px', padding: '12px 24px' }}
               >
                 {loading ? 'Recovering Account...' : '🔓 Execute ZK Recovery'}
@@ -957,7 +1049,26 @@ export default function Home() {
             </div>
           )}
 
-         
+          {/* Instructions for non-owners */}
+          {accountInfo && 
+           account?.toLowerCase() !== accountInfo.owner.toLowerCase() && (
+            <div className="card">
+              <h2>Testing ZK Recovery</h2>
+              <p>You're viewing as a non-owner. To test ZK recovery:</p>
+              <div style={{ backgroundColor: '#f0f8ff', padding: '15px', borderRadius: '4px', margin: '10px 0' }}>
+                <h4>Step 1: Import Owner Account</h4>
+                <p>Import this private key into MetaMask:</p>
+                <code style={{ backgroundColor: '#fff', padding: '8px', display: 'block', borderRadius: '4px', fontSize: '12px', wordBreak: 'break-all' }}>
+                  0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+                </code>
+                <p style={{ fontSize: '12px', marginTop: '5px' }}>This is Hardhat's default account #1 (safe for testing)</p>
+              </div>
+              <div style={{ backgroundColor: '#f0fdf4', padding: '15px', borderRadius: '4px', margin: '10px 0' }}>
+                <h4>Step 2: Set Guardian Commitment</h4>
+                <p>Use the owner account to set a guardian commitment hash, then use the guardian helper scripts to generate nullifier and ZK proof for recovery.</p>
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -965,7 +1076,7 @@ export default function Home() {
       {status && (
         <div className={`status-box status-${status.type}`}>
           {status.message}
-          {status.message.includes('circuit breaker') && (
+          {status.message && status.message.includes('circuit breaker') && (
             <div style={{ marginTop: '10px' }}>
               <button 
                 className="button" 

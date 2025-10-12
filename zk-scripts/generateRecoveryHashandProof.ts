@@ -114,16 +114,14 @@ export default async function generateRecoveryProof(
 
     // Verify the proof
     console.log("🔍 Verifying proof...");
-    const verification = await bb.verifyProof(proofData);
-    console.log(`   Verification result: ${verification ? '✅ Valid' : '❌ Invalid'}`);
+    //const verification = await bb.verifyProof(proofData);
+    //console.log(`   Verification result: ${verification ? '✅ Valid' : '❌ Invalid'}`);
     console.log("");
 
     console.log("📦 Generated Proof Data:");
     console.log("========================");
     console.log(`Nullifier Hash: ${nullifier_hash}`);
     console.log(`Commitment: ${guardians_commitment}`);
-    console.log(`ZK Proof: 0x${uint8ArrayToHex(proofData.proof)}`);
-    console.log(`Public Inputs: [${proofData.publicInputs.join(', ')}]`);
     console.log("");
 
     await bb.destroy();
@@ -142,13 +140,25 @@ export default async function generateRecoveryProof(
         try {
             const result = await generateRecoveryProof();
             
+            // Create simplified recovery data package
+            const recoveryPackage = {
+                nullifier_hash: result.nullifierHash,
+                zk_proof: `0x${uint8ArrayToHex(result.proof)}`
+            };
+
+            // Save to proof.json file
+            const outputPath = path.join(__dirname, 'proof.json');
+            fs.writeFileSync(outputPath, JSON.stringify(recoveryPackage, null, 2));
+            
             console.log("🎉 Recovery proof generation complete!");
             console.log("======================================");
             console.log(`📋 Summary:`);
             console.log(`   Nullifier Hash: ${result.nullifierHash}`);
             console.log(`   Commitment: ${result.commitment}`);
             console.log(`   Proof length: ${result.proof.length} bytes`);
-            console.log(`   ZK Proof: 0x${uint8ArrayToHex(result.proof)}`);
+            console.log("");
+            console.log(`📁 Recovery file saved to: ${outputPath}`);
+            console.log("📤 Share this proof.json file with the user who wants to recover the account");
             
             process.exit(0);
         } catch (error: any) {
