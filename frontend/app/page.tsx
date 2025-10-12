@@ -69,6 +69,13 @@ export default function Home() {
     checkMetaMaskConnection()
   }, [])
 
+  // Auto-populate new owner address when account changes
+  useEffect(() => {
+    if (account) {
+      setRecoveryForm(prev => ({ ...prev, newOwnerAddress: account }))
+    }
+  }, [account])
+
   const checkMetaMaskConnection = async () => {
     if (typeof window.ethereum !== 'undefined') {
       try {
@@ -883,18 +890,25 @@ export default function Home() {
               <div style={{ backgroundColor: '#fef3cd', padding: '15px', borderRadius: '4px', margin: '15px 0' }}>
                 <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>✏️ Recovery</h3>
                 <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 10px 0' }}>
-                  Manually enter recovery details (if you prefer not to copy-paste):
+                  Manually enter recovery details from your guardian (you will become the new owner):
                 </p>
               
                 <div className="form-group">
-                  <label className="label">New Owner Address:</label>
+                  <label className="label">New Owner Address (You):</label>
                   <input
                     type="text"
                     className="input"
-                    value={recoveryForm.newOwnerAddress}
-                    onChange={(e) => setRecoveryForm({ ...recoveryForm, newOwnerAddress: e.target.value })}
-                    placeholder="0x..."
+                    value={recoveryForm.newOwnerAddress || account || 'Connect wallet first...'}
+                    readOnly
+                    style={{ 
+                      backgroundColor: '#f9f9f9', 
+                      cursor: 'not-allowed',
+                      color: '#4b5563'
+                    }}
                   />
+                  <p style={{ fontSize: '12px', color: '#10b981', marginTop: '4px' }}>
+                    ✅ This is automatically set to your connected wallet address. You will become the new owner.
+                  </p>
                 </div>
                 
                 <div className="form-group">
@@ -938,7 +952,7 @@ export default function Home() {
               </button>
               
               <p style={{ fontSize: '12px', color: '#dc2626', marginTop: '8px', fontWeight: '500' }}>
-                ⚠️ This will transfer ownership to the new address. Make sure all details are correct!
+                ⚠️ This will transfer ownership to your connected wallet ({account ? `${account.slice(0,6)}...${account.slice(-4)}` : 'your address'}). Make sure all details are correct!
               </p>
             </div>
           )}
