@@ -5,11 +5,11 @@ import { ethers } from 'ethers'
 import { SmartAccountABI } from './abis/SmartAccount'
 import { ERC20MockABI } from './abis/ERC20Mock'
 
-// Contract addresses from Linea testnet deployment
-const SMART_ACCOUNT_ADDRESS = '0x8beb6669E487FDb09CE67F581d427AaC01D3cb50' // Created smart account
-const FACTORY_ADDRESS = '0xc729bbd894d27a8330eb91bb41d7965fac3ce33a' // Smart Account Factory
-const ENTRY_POINT_ADDRESS = '0x470d5588fd69f3d4eb4d82f950d483a7be9131a4' // Entry Point
-const ERC20_MOCK_ADDRESS = '0xc0265d051d8a15f94a33cb90256b7c5a02bc0579' // ERC20 Mock Token
+// Contract addresses - updated for Base Sepolia deployment
+const SMART_ACCOUNT_ADDRESS = '0xc2716d0E52EfDa2Ae79b8e45Cb15C55cA119F7d3' // Demo smart account
+const FACTORY_ADDRESS = '0x4d25cBbDb71F1bc34D20A421909D399215b99416' // SmartAccountFactory
+const ENTRY_POINT_ADDRESS = '0x5987e074c2B22CC2BEdb18A59E36467600cD1549' // Custom EntryPoint
+const ERC20_MOCK_ADDRESS = '0x4d9B95e1a074414CBd09cf44BB5daEBBeBEc096f' // ERC20Mock for testing
 
 interface AccountInfo {
   address: string
@@ -147,7 +147,7 @@ export default function Home() {
         if (error.message && error.message.includes('Internal JSON-RPC error')) {
           setStatus({ 
             type: 'error', 
-            message: 'MetaMask network error. Please ensure you are connected to the correct network (localhost:8545) and try again. You may need to switch networks or reset MetaMask.' 
+            message: 'MetaMask network error. Please ensure you are connected to Base Sepolia and try again. You may need to switch networks or reset MetaMask.' 
           })
           return
         }
@@ -188,18 +188,60 @@ export default function Home() {
     }
   }
 
-  // Check if user is on the correct network
+  // Check if user is on the correct network and offer to switch
   const checkNetwork = async () => {
     const chainId = await window.ethereum.request({ method: 'eth_chainId' })
-    const supportedChains = ['0xe705'] // Linea testnet (59141)
+    const supportedChains = ['0x14a34'] // Base Sepolia (84532)
     if (!supportedChains.includes(chainId)) {
       setStatus({ 
         type: 'error', 
-        message: `Wrong network! Please switch to Linea testnet (Chain ID: 59141). Current Chain ID: ${parseInt(chainId, 16)}` 
+        message: `Wrong network! Please switch to Base Sepolia (Chain ID: 84532). Current Chain ID: ${parseInt(chainId, 16)}` 
       })
       return false
     }
     return true
+  }
+
+  // Switch to Base Sepolia network
+  const switchToBaseSepolia = async () => {
+    try {
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: '0x14a34' }], // Base Sepolia
+      })
+      setStatus({ type: 'success', message: 'Switched to Base Sepolia network!' })
+      return true
+    } catch (switchError: any) {
+      // This error code indicates that the chain has not been added to MetaMask
+      if (switchError.code === 4902) {
+        try {
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [
+              {
+                chainId: '0x14a34',
+                chainName: 'Base Sepolia',
+                nativeCurrency: {
+                  name: 'ETH',
+                  symbol: 'ETH',
+                  decimals: 18,
+                },
+                rpcUrls: ['https://sepolia.base.org'],
+                blockExplorerUrls: ['https://sepolia-explorer.base.org'],
+              },
+            ],
+          })
+          setStatus({ type: 'success', message: 'Base Sepolia network added and switched!' })
+          return true
+        } catch (addError) {
+          setStatus({ type: 'error', message: 'Failed to add Base Sepolia network' })
+          return false
+        }
+      } else {
+        setStatus({ type: 'error', message: 'Failed to switch to Base Sepolia network' })
+        return false
+      }
+    }
   }
 
   // Connect wallet
@@ -637,7 +679,7 @@ export default function Home() {
       
       console.log('Estimated gas:', estimatedGas.toString())
       
-      // Execute with high gas settings for faster ZK proof verification
+      // Execute with optimized gas settings for Base Sepolia
       const tx = await contract['recoverAccount(address,uint256,bytes32,bytes)'](
         recoveryForm.newOwnerAddress,
         0,
@@ -645,7 +687,8 @@ export default function Home() {
         recoveryForm.zkProof,
         {
           gasLimit: estimatedGas * BigInt(150) / BigInt(100), // 50% buffer for ZK verification
-          gasPrice: ethers.parseUnits('1.0', 'gwei'), // High gas price for fast execution
+          maxFeePerGas: ethers.parseUnits('5', 'gwei'), // Base Sepolia optimized gas
+          maxPriorityFeePerGas: ethers.parseUnits('2', 'gwei'), // Base Sepolia optimized priority
         }
       )
       

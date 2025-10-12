@@ -44,7 +44,7 @@ const projectRoot = path.join(__dirname, '..');
 const circuit_path = path.join(projectRoot, "circuits/target/circuits.json");
 
 export default async function generateRecoveryProof(
-    currentOwner: string = "0x945dc407f256015329D5E38BE8367278a4ab072c", // Linea testnet owner
+    currentOwner: string = "0x945dc407f256015329D5E38BE8367278a4ab072c", // Will be updated for Base Sepolia
     newOwner: string = "0x3749E100946fde968aA4c9BF0f43f5FD0D312aDa"     // New owner (can be changed)
 ): Promise<{
     proof: Uint8Array;

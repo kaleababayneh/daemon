@@ -77,11 +77,11 @@ const config: HardhatUserConfig = {
       url: configVariable("SEPOLIA_RPC_URL"),
       accounts: [configVariable("SEPOLIA_PRIVATE_KEY")],
     },
-    lineaTestnet: {
+    baseSepolia: {
       type: "http",
-      url: 'https://rpc.sepolia.linea.build/',
+      url: 'https://base-sepolia-public.nodies.app',
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      chainId: 59141
+      chainId: 84532
     }
   },
 };

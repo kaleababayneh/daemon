@@ -4,44 +4,59 @@ import { getCreateAddress } from "ethers";
 import { encodeFunctionData, hashMessage } from "viem/utils";
 
 /**
-Linea Testnet Deployment Addresses:
-Poseidon2:           0xfbca54f1ea66bdbec1bda7f70071bd44e4d23247
-HonkVerifier:        0xb80e7cd9364752484578b23c8e6e86a80774451c
-EntryPoint:          0x470d5588fd69f3d4eb4d82f950d483a7be9131a4
-SmartAccountFactory: 0xc729bbd894d27a8330eb91bb41d7965fac3ce33a
-Paymaster:           0xf4f78729200929ec8610f4352fdbeb450393d8e0
-ERC20Mock:           0xc0265d051d8a15f94a33cb90256b7c5a02bc0579
+Base Sepolia Deployment Addresses:
+Poseidon2:           0xc0265D051d8a15F94a33CB90256B7C5A02bc0579
+HonkVerifier:        0xcc716b91e473fCA3f8067da29107E23d7D284A70
+EntryPoint:          0x5987e074c2B22CC2BEdb18A59E36467600cD1549
+SmartAccountFactory: 0x4d25cBbDb71F1bc34D20A421909D399215b99416
+Demo SmartAccount:   0xc2716d0E52EfDa2Ae79b8e45Cb15C55cA119F7d3
+ERC20Mock:           0x4d9B95e1a074414CBd09cf44BB5daEBBeBEc096f
  */
 
 const FACTORY_NONCE = 1;
-const FACTORY_ADDR = "0xc729bbd894d27a8330eb91bb41d7965fac3ce33a"; // SmartAccountFactory
-const EP_ADDR = "0x470d5588fd69f3d4eb4d82f950d483a7be9131a4";      // EntryPoint
-const PM_ADDR = "0xf4f78729200929ec8610f4352fdbeb450393d8e0";     // Paymaster
-const ERC20Mock_ADDR = "0xc0265d051d8a15f94a33cb90256b7c5a02bc0579"; // ERC20Mock
+const FACTORY_ADDR = "0x4d25cBbDb71F1bc34D20A421909D399215b99416"; // SmartAccountFactory
+const EP_ADDR = "0x5987e074c2B22CC2BEdb18A59E36467600cD1549";      // EntryPoint
+const DEMO_ACCOUNT_ADDR = "0xc2716d0E52EfDa2Ae79b8e45Cb15C55cA119F7d3"; // Demo SmartAccount
+const ERC20Mock_ADDR = "0x4d9B95e1a074414CBd09cf44BB5daEBBeBEc096f"; // ERC20Mock
 
 async function main() {
-    const [signer0, signer1] = await viem.getWalletClients();
+    const [signer0] = await viem.getWalletClients();
     const publicClient = await viem.getPublicClient();
     const entryPoint = await viem.getContractAt("EntryPoint", EP_ADDR);
     const usdc = await viem.getContractAt("ERC20Mock", ERC20Mock_ADDR);
     
-    const sender = getCreateAddress({
-        from: FACTORY_ADDR,
-        nonce: FACTORY_NONCE
-    }) as `0x${string}`;
+    // Use the demo smart account that was already created during deployment
+    const sender = DEMO_ACCOUNT_ADDR as `0x${string}`;
 
     const nonce = await entryPoint.read.getNonce([sender, 0n]);
 
     const accountCode = await publicClient.getCode({ address: sender });
 
     if (!accountCode || accountCode === "0x") {
+        console.log("Smart account not found at expected address. Using factory to create one...");
         const AccountFactory = await viem.getContractAt("SmartAccountFactory", FACTORY_ADDR);
         const createTx = await AccountFactory.write.createAccount([EP_ADDR]);
         await publicClient.waitForTransactionReceipt({ hash: createTx });
         console.log("Account created!");
+    } else {
+        console.log("Smart account found at:", sender);
     }
 
     const Account = await viem.getContractAt("SmartAccount", sender);
+    
+    // Check current balance in EntryPoint
+    const currentBalance = await entryPoint.read.balanceOf([sender]);
+    console.log("Current EntryPoint balance:", currentBalance);
+    
+    // Fund the account if needed
+    const requiredBalance = 1_000_000_000_000_000n; // 0.001 ETH
+    if (currentBalance < requiredBalance) {
+        console.log("Funding account...");
+        await entryPoint.write.depositTo([sender], { 
+            value: requiredBalance 
+        });
+        console.log("Account funded with:", requiredBalance);
+    }
     
     // Fix 1: Mint tokens TO the smart account, not to the ERC20Mock contract
     let value = 1_000_000_000_000_000n;
@@ -62,11 +77,6 @@ async function main() {
         ]
     });
 
-    // Fund the account
-    await entryPoint.write.depositTo([sender], { 
-        value: 1_000_000_000_000_000n 
-    });
-
     const userOp = {
         sender,
         nonce,
@@ -74,7 +84,7 @@ async function main() {
         callData,
         accountGasLimits: "0x000000000000000000000000000186a0000000000000000000000000000186a0" as `0x${string}`,
         preVerificationGas: 50000n, 
-        gasFees: "0x0000000000000000000000000000000100000000000000000000000000000001" as `0x${string}`,
+        gasFees: "0x0000000000000000000000000100000000000000000000000000000000000100" as `0x${string}`, // Higher gas fees
         paymasterAndData: "0x" as `0x${string}`,
         signature: "0x" as `0x${string}`,
     };
