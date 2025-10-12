@@ -624,14 +624,34 @@ export default function Home() {
       const provider = new ethers.BrowserProvider(window.ethereum)
       const signer = await provider.getSigner()
       
-      // Call ZK recover function - specify the exact function signature
+      // Call ZK recover function with higher gas settings for faster execution
       const contract = new ethers.Contract(recoveryForm.recoveryTargetAddress, SmartAccountABI, signer)
-      const tx = await contract['recoverAccount(address,uint256,bytes32,bytes)'](
+      
+      // Estimate gas first, then add buffer
+      const estimatedGas = await contract['recoverAccount(address,uint256,bytes32,bytes)'].estimateGas(
         recoveryForm.newOwnerAddress,
         0,
         recoveryForm.nullifierHash,
         recoveryForm.zkProof
       )
+      
+      console.log('Estimated gas:', estimatedGas.toString())
+      
+      // Execute with high gas settings for faster ZK proof verification
+      const tx = await contract['recoverAccount(address,uint256,bytes32,bytes)'](
+        recoveryForm.newOwnerAddress,
+        0,
+        recoveryForm.nullifierHash,
+        recoveryForm.zkProof,
+        {
+          gasLimit: estimatedGas * BigInt(150) / BigInt(100), // 50% buffer for ZK verification
+          gasPrice: ethers.parseUnits('1.0', 'gwei'), // High gas price for fast execution
+        }
+      )
+      
+      console.log('Transaction sent with hash:', tx.hash)
+      setStatus({ type: 'info', message: `Transaction sent! Hash: ${tx.hash}. Waiting for confirmation...` })
+      
       await tx.wait()
       
       setStatus({ type: 'success', message: 'Account recovered successfully using ZK proof!' })
@@ -1052,6 +1072,7 @@ export default function Home() {
                 </div>
               )}
 
+
               {/* Submit Recovery */}
               <button
                 className="button"
@@ -1059,7 +1080,7 @@ export default function Home() {
                 disabled={loading || !recoveryForm.newOwnerAddress || !recoveryForm.nullifierHash || !recoveryForm.zkProof || !recoveryForm.recoveryTargetAddress}
                 style={{ backgroundColor: '#dc2626', color: 'white', fontSize: '16px', padding: '12px 24px' }}
               >
-                {loading ? 'Recovering Account...' : '🔓 Execute ZK Recovery'}
+                {loading ? 'Recovering Account...' : '🔓 Execute ZK Recovery (High Gas)'}
               </button>
               
               <p style={{ fontSize: '12px', color: '#dc2626', marginTop: '8px', fontWeight: '500' }}>
