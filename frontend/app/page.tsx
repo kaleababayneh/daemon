@@ -51,6 +51,8 @@ export default function Home() {
     guardianCommitment: '',
     nullifierHash: '',
     zkProof: '',
+    // Recovery data from guardian (copy-paste format)
+    recoveryData: '',
   })
   const [mintAmount, setMintAmount] = useState('1000')
   const [showGuardianTools, setShowGuardianTools] = useState(false)
@@ -491,6 +493,48 @@ export default function Home() {
     }
   }
 
+  // Parse recovery data from guardian
+  const parseRecoveryData = () => {
+    if (!recoveryForm.recoveryData.trim()) {
+      setStatus({ type: 'error', message: 'Please paste recovery data from guardian' })
+      return
+    }
+
+    try {
+      const recoveryPackage = JSON.parse(recoveryForm.recoveryData)
+      
+      // Validate required fields
+      if (!recoveryPackage.nullifier_hash || !recoveryPackage.zk_proof || !recoveryPackage.new_owner) {
+        throw new Error('Invalid recovery data format - missing required fields')
+      }
+
+      // Auto-fill the form with parsed data
+      setRecoveryForm(prev => ({
+        ...prev,
+        nullifierHash: recoveryPackage.nullifier_hash,
+        zkProof: recoveryPackage.zk_proof,
+        newOwnerAddress: recoveryPackage.new_owner,
+      }))
+
+      setStatus({ 
+        type: 'success', 
+        message: `✅ Recovery data parsed successfully! New owner: ${recoveryPackage.new_owner.slice(0,6)}...${recoveryPackage.new_owner.slice(-4)}` 
+      })
+
+      console.log('Parsed recovery package:', {
+        nullifier_hash: recoveryPackage.nullifier_hash,
+        new_owner: recoveryPackage.new_owner,
+        commitment: recoveryPackage.commitment,
+        generated_at: recoveryPackage.generated_at,
+        proof_length: recoveryPackage.proof_length
+      })
+
+    } catch (error: any) {
+      setStatus({ type: 'error', message: `Failed to parse recovery data: ${error.message}` })
+      console.error('Recovery data parsing error:', error)
+    }
+  }
+
   // ZK Recovery function
   const recoverAccountZK = async () => {
     if (!isConnected || !account || !accountInfo) {
@@ -508,9 +552,9 @@ export default function Home() {
       const provider = new ethers.BrowserProvider(window.ethereum)
       const signer = await provider.getSigner()
       
-      // Call ZK recover function
+      // Call ZK recover function - specify the exact function signature
       const contract = new ethers.Contract(accountInfo.address, SmartAccountABI, signer)
-      const tx = await contract.recoverAccount(
+      const tx = await contract['recoverAccount(address,uint256,bytes32,bytes)'](
         recoveryForm.newOwnerAddress,
         accountInfo.nonce,
         recoveryForm.nullifierHash,
@@ -983,55 +1027,101 @@ export default function Home() {
           {accountInfo && (
             <div className="card">
               <h2>ZK Account Recovery</h2>
-              <p>If you are a guardian or have the ZK proof, you can recover this account by providing the nullifier hash and ZK proof.</p>
+              <p>Recover this account using ZK proof data from a guardian.</p>
               
-              <div className="form-group">
-                <label className="label">New Owner Address:</label>
-                <input
-                  type="text"
-                  className="input"
-                  value={recoveryForm.newOwnerAddress}
-                  onChange={(e) => setRecoveryForm({ ...recoveryForm, newOwnerAddress: e.target.value })}
-                  placeholder="0x..."
-                />
-              </div>
-              
-              <div className="form-group">
-                <label className="label">Nullifier Hash:</label>
-                <input
-                  type="text"
-                  className="input"
-                  value={recoveryForm.nullifierHash}
-                  onChange={(e) => setRecoveryForm({ ...recoveryForm, nullifierHash: e.target.value })}
-                  placeholder="0x..."
-                />
-                <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-                  This should be provided by the guardian along with the ZK proof.
+              {/* Option 1: Copy-Paste Recovery Data */}
+              <div style={{ backgroundColor: '#f0f8ff', padding: '15px', borderRadius: '4px', margin: '15px 0' }}>
+                <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>📋 Option 1: Paste Recovery Data (Recommended)</h3>
+                <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 10px 0' }}>
+                  Paste the complete recovery package from your guardian:
                 </p>
+                
+                <div className="form-group">
+                  <label className="label">Recovery Data from Guardian:</label>
+                  <textarea
+                    className="input"
+                    value={recoveryForm.recoveryData}
+                    onChange={(e) => setRecoveryForm({ ...recoveryForm, recoveryData: e.target.value })}
+                    placeholder='Paste the complete JSON recovery package here...'
+                    rows={8}
+                    style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '11px', backgroundColor: '#f9f9f9' }}
+                  />
+                  <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                    Guardian should run: <code>npx hardhat run guardian-generate-recovery.ts --network localhost</code>
+                  </p>
+                </div>
+                
+                <button
+                  className="button"
+                  onClick={parseRecoveryData}
+                  disabled={loading || !recoveryForm.recoveryData.trim()}
+                  style={{ backgroundColor: '#10b981', marginBottom: '10px' }}
+                >
+                  Parse Recovery Data
+                </button>
               </div>
-              
-              <div className="form-group">
-                <label className="label">ZK Proof:</label>
-                <textarea
-                  className="input"
-                  value={recoveryForm.zkProof}
-                  onChange={(e) => setRecoveryForm({ ...recoveryForm, zkProof: e.target.value })}
-                  placeholder="0x..."
-                  rows={3}
-                  style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '12px' }}
-                />
-                <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-                  The ZK proof generated by the guardian for this recovery.
+
+              {/* Option 2: Manual Entry */}
+              <div style={{ backgroundColor: '#fef3cd', padding: '15px', borderRadius: '4px', margin: '15px 0' }}>
+                <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>✏️ Option 2: Manual Entry</h3>
+                <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 10px 0' }}>
+                  Manually enter recovery details (if you prefer not to copy-paste):
                 </p>
+              
+                <div className="form-group">
+                  <label className="label">New Owner Address:</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={recoveryForm.newOwnerAddress}
+                    onChange={(e) => setRecoveryForm({ ...recoveryForm, newOwnerAddress: e.target.value })}
+                    placeholder="0x..."
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label className="label">Nullifier Hash:</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={recoveryForm.nullifierHash}
+                    onChange={(e) => setRecoveryForm({ ...recoveryForm, nullifierHash: e.target.value })}
+                    placeholder="0x..."
+                  />
+                  <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                    This should be provided by the guardian along with the ZK proof.
+                  </p>
+                </div>
+                
+                <div className="form-group">
+                  <label className="label">ZK Proof:</label>
+                  <textarea
+                    className="input"
+                    value={recoveryForm.zkProof}
+                    onChange={(e) => setRecoveryForm({ ...recoveryForm, zkProof: e.target.value })}
+                    placeholder="0x..."
+                    rows={3}
+                    style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '12px' }}
+                  />
+                  <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                    The ZK proof generated by the guardian for this recovery.
+                  </p>
+                </div>
               </div>
               
+              {/* Submit Recovery */}
               <button
                 className="button"
                 onClick={recoverAccountZK}
                 disabled={loading || !recoveryForm.newOwnerAddress || !recoveryForm.nullifierHash || !recoveryForm.zkProof}
+                style={{ backgroundColor: '#dc2626', color: 'white', fontSize: '16px', padding: '12px 24px' }}
               >
-                {loading ? 'Recovering...' : 'Recover Account with ZK Proof'}
+                {loading ? 'Recovering Account...' : '🔓 Execute ZK Recovery'}
               </button>
+              
+              <p style={{ fontSize: '12px', color: '#dc2626', marginTop: '8px', fontWeight: '500' }}>
+                ⚠️ This will transfer ownership to the new address. Make sure all details are correct!
+              </p>
             </div>
           )}
 

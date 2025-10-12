@@ -86,7 +86,8 @@ abstract contract SocialRecovery is EIP712 {
         // Transfer ownership
         address oldOwner = currentOwner;
         _transferOwnership(newOwner);
-
+        // Mark the nullifier as used
+        guardianCommitments = bytes32(0);
         emit AccountRecovered(oldOwner, newOwner);
     }
 
