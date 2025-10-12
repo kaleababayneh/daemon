@@ -806,23 +806,7 @@ export default function Home() {
                   <p style={{ color: '#6b7280' }}>� ZK Recovery - Anyone with valid nullifier hash and ZK proof can recover</p>
                 </div>
 
-                {/* Testing Instructions */}
-                {account?.toLowerCase() !== accountInfo.owner.toLowerCase() && (
-                  <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#fef3c7', borderRadius: '4px' }}>
-                    <h4>🧪 To Test ZK Recovery:</h4>
-                    <ol>
-                      <li>First, import the <strong>owner's private key</strong> into MetaMask:
-                        <br />
-                        <code style={{ backgroundColor: '#fff', padding: '2px 4px', borderRadius: '2px', fontSize: '12px' }}>
-                          0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-                        </code>
-                      </li>
-                      <li>Switch to that account and set a guardian commitment hash</li>
-                      <li>Use the guardian helper scripts to generate nullifier and ZK proof</li>
-                      <li>Return here and use the ZK recovery section!</li>
-                    </ol>
-                  </div>
-                )}
+               
               </div>
             </div>
           )}
@@ -903,95 +887,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* Guardian Tools */}
-          <div className="card">
-            <h2>🛡️ Guardian Tools</h2>
-            <p>Generate commitment hashes and ZK proofs for privacy-preserving recovery.</p>
-            
-            <button
-              className="button"
-              onClick={() => setShowGuardianTools(!showGuardianTools)}
-              style={{ marginBottom: '15px' }}
-            >
-              {showGuardianTools ? 'Hide Guardian Tools' : 'Show Guardian Tools'}
-            </button>
-            
-            {showGuardianTools && (
-              <div style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '15px' }}>
-                <h3>Guardian Secret Values</h3>
-                <div className="form-group">
-                  <label className="label">Secret Key:</label>
-                  <input
-                    type="text"
-                    className="input"
-                    value={guardianForm.secretKey}
-                    onChange={(e) => setGuardianForm({ ...guardianForm, secretKey: e.target.value })}
-                    placeholder="Enter your secret key (e.g., 1)"
-                  />
-                </div>
-                
-                <div className="form-group">
-                  <label className="label">Secret Answer:</label>
-                  <input
-                    type="text"
-                    className="input"
-                    value={guardianForm.secretAnswer}
-                    onChange={(e) => setGuardianForm({ ...guardianForm, secretAnswer: e.target.value })}
-                    placeholder="Enter your secret answer (e.g., 2)"
-                  />
-                </div>
-                
-                <div style={{ marginTop: '15px', marginBottom: '15px' }}>
-                  <button
-                    className="button"
-                    onClick={generateCommitment}
-                    disabled={loading || !guardianForm.secretKey || !guardianForm.secretAnswer}
-                  >
-                    {loading ? 'Generating...' : 'Generate Commitment Hash'}
-                  </button>
-                </div>
-                
-                <hr style={{ margin: '20px 0' }} />
-                
-                <h3>Recovery Proof Generation</h3>
-                <div className="form-group">
-                  <label className="label">Current Owner Address:</label>
-                  <input
-                    type="text"
-                    className="input"
-                    value={guardianForm.currentOwner}
-                    onChange={(e) => setGuardianForm({ ...guardianForm, currentOwner: e.target.value })}
-                    placeholder="0x..."
-                  />
-                </div>
-                
-                <div className="form-group">
-                  <label className="label">New Owner Address:</label>
-                  <input
-                    type="text"
-                    className="input"
-                    value={guardianForm.newOwner}
-                    onChange={(e) => setGuardianForm({ ...guardianForm, newOwner: e.target.value })}
-                    placeholder="0x..."
-                  />
-                </div>
-                
-                <button
-                  className="button"
-                  onClick={generateRecoveryZKProof}
-                  disabled={loading || !guardianForm.secretKey || !guardianForm.secretAnswer || !guardianForm.currentOwner || !guardianForm.newOwner}
-                >
-                  {loading ? 'Generating ZK Proof...' : 'Generate Recovery Proof'}
-                </button>
-                
-                {zkProgress && (
-                  <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#f0f8ff', borderRadius: '4px' }}>
-                    <p style={{ margin: 0, fontSize: '14px' }}>🔄 {zkProgress}</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+      
 
           {/* Set Guardian (for owners) - ZK Commitment Only */}
           {accountInfo && account?.toLowerCase() === accountInfo.owner.toLowerCase() && (
@@ -1029,41 +925,11 @@ export default function Home() {
               <h2>ZK Account Recovery</h2>
               <p>Recover this account using ZK proof data from a guardian.</p>
               
-              {/* Option 1: Copy-Paste Recovery Data */}
-              <div style={{ backgroundColor: '#f0f8ff', padding: '15px', borderRadius: '4px', margin: '15px 0' }}>
-                <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>📋 Option 1: Paste Recovery Data (Recommended)</h3>
-                <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 10px 0' }}>
-                  Paste the complete recovery package from your guardian:
-                </p>
-                
-                <div className="form-group">
-                  <label className="label">Recovery Data from Guardian:</label>
-                  <textarea
-                    className="input"
-                    value={recoveryForm.recoveryData}
-                    onChange={(e) => setRecoveryForm({ ...recoveryForm, recoveryData: e.target.value })}
-                    placeholder='Paste the complete JSON recovery package here...'
-                    rows={8}
-                    style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '11px', backgroundColor: '#f9f9f9' }}
-                  />
-                  <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-                    Guardian should run: <code>npx hardhat run guardian-generate-recovery.ts --network localhost</code>
-                  </p>
-                </div>
-                
-                <button
-                  className="button"
-                  onClick={parseRecoveryData}
-                  disabled={loading || !recoveryForm.recoveryData.trim()}
-                  style={{ backgroundColor: '#10b981', marginBottom: '10px' }}
-                >
-                  Parse Recovery Data
-                </button>
-              </div>
+            
 
               {/* Option 2: Manual Entry */}
               <div style={{ backgroundColor: '#fef3cd', padding: '15px', borderRadius: '4px', margin: '15px 0' }}>
-                <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>✏️ Option 2: Manual Entry</h3>
+                <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>✏️ Recovery</h3>
                 <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 10px 0' }}>
                   Manually enter recovery details (if you prefer not to copy-paste):
                 </p>
@@ -1125,26 +991,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* Instructions for non-owners */}
-          {accountInfo && 
-           account?.toLowerCase() !== accountInfo.owner.toLowerCase() && (
-            <div className="card">
-              <h2>Testing ZK Recovery</h2>
-              <p>You're viewing as a non-owner. To test ZK recovery:</p>
-              <div style={{ backgroundColor: '#f0f8ff', padding: '15px', borderRadius: '4px', margin: '10px 0' }}>
-                <h4>Step 1: Import Owner Account</h4>
-                <p>Import this private key into MetaMask:</p>
-                <code style={{ backgroundColor: '#fff', padding: '8px', display: 'block', borderRadius: '4px', fontSize: '12px', wordBreak: 'break-all' }}>
-                  0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-                </code>
-                <p style={{ fontSize: '12px', marginTop: '5px' }}>This is Hardhat's default account #1 (safe for testing)</p>
-              </div>
-              <div style={{ backgroundColor: '#f0fdf4', padding: '15px', borderRadius: '4px', margin: '10px 0' }}>
-                <h4>Step 2: Set Guardian Commitment</h4>
-                <p>Use the owner account to set a guardian commitment hash, then use the guardian helper scripts to generate nullifier and ZK proof for recovery.</p>
-              </div>
-            </div>
-          )}
+         
         </>
       )}
 
