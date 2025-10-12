@@ -1,6 +1,6 @@
 # ZK Smart Account Recovery System
 
-A comprehensive zero-knowledge smart account recovery system built on Linea(Ethereum), leveraging ZK-SNARKs for privacy-preserving social recovery. This project enables secure account recovery through guardian verification without revealing sensitive information on-chain.
+A comprehensive zero-knowledge smart account recovery system built on Linea(Ethereum), leveraging ZK-SNARKs for privacy-preserving social recovery. This project enables secure account recovery through guardian verification without revealing sensitive information on-chain. The other branch of a repo contains social recovery without any privacy consideration.
 
 ## 🏗️ Architecture Overview
 
