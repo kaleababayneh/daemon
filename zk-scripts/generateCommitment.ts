@@ -18,7 +18,7 @@ export default async function generateCommitment(): Promise<Fr> {
     const bb = await Barretenberg.new();
 
     const secret_key = Fr.fromString((0xdf57089febbacf7ba0bc227dafbffa9fc08a93fdc68e1e42411a14efcf23656en % FIELD_MODULUS).toString()); // example secret key
-    const secret_answer_one = englishWordToField("apple"); // fruit
+    const secret_answer_one = englishWordToField("mango"); // fruit
     const commitment = await bb.poseidon2Hash([secret_key,secret_answer_one]);
 
     

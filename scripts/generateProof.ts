@@ -24,14 +24,16 @@ export default async function generateProof(): Promise<{ proof: Uint8Array, publ
 
 
     const secret_key = Fr.fromString((0xdf57089febbacf7ba0bc227dafbffa9fc08a93fdc68e1e42411a14efcf23656en % FIELD_MODULUS).toString()); // example secret key
-    const secret_answer_one = englishWordToField("apple"); // fruit
+    const secret_answer_one = englishWordToField("mango"); // fruit - UPDATED to match your commitment
     const secret_answer_two = englishWordToField("dog"); // animal
     const current_owner = new Fr(BigInt("0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"));
-    const new_owner = new Fr(BigInt("0xdd2fd4581271e230360230f9337d5c0430bf44c0"));
+    const new_owner = new Fr(BigInt("0x70997970c51812dc3a010c7d01b50e0d17dc79c8")); // Updated to signer1
 
 
-    const nullifier_hash = await bb.poseidon2Hash([secret_key,secret_answer_two,new_owner,current_owner]);
-    const commitment = await generateCommitment();
+    const secret_answer_hash = await bb.poseidon2Hash([secret_answer_one]);
+    const nullifier_hash = await bb.poseidon2Hash([secret_key, secret_answer_hash, new_owner, current_owner]);
+    // Generate commitment directly to ensure consistency
+    const commitment = await bb.poseidon2Hash([secret_key,secret_answer_one]);
 
     console.log("Commitment:", commitment.toString());
     console.log("Nullifier Hash:", nullifier_hash.toString());
@@ -61,12 +63,11 @@ export default async function generateProof(): Promise<{ proof: Uint8Array, publ
         const input = {
             
             nullifier_hash: nullifier_hash.toString(),
-            guardians_commitment: [commitment.toString(), "1", "2", "3", "4", "5", "6", "7", "8", "9"], // Padding to match [Field; 10]
+            guardians_commitment: commitment.toString(), // Single Field, not array
             new_owner: new_owner.toString(),
             current_owner: current_owner.toString(),
 
-            secret_answer_one: secret_answer_one.toString(),
-            secret_answer_two: secret_answer_two.toString(),
+            secret_answer: secret_answer_one.toString(), // Updated to match circuit
             secret_key: secret_key.toString(),
         }
 
