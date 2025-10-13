@@ -44,8 +44,8 @@ const projectRoot = path.join(__dirname, '..');
 const circuit_path = path.join(projectRoot, "circuits/target/circuits.json");
 
 export default async function generateRecoveryProof(
-    currentOwner: string = "0x945dc407f256015329D5E38BE8367278a4ab072c", // Will be updated for Base Sepolia
-    newOwner: string = "0x3749E100946fde968aA4c9BF0f43f5FD0D312aDa"     // New owner (can be changed)
+    currentOwner: string = "0x3749E100946fde968aA4c9BF0f43f5FD0D312aDa" ,
+    newOwner: string = "0x945dc407f256015329d5e38be8367278a4ab072c"    // New owner (can be changed)
 ): Promise<{
     proof: Uint8Array;
     nullifierHash: string;
@@ -61,7 +61,7 @@ export default async function generateRecoveryProof(
 
     // Circuit inputs matching your specification
     const secret_key = Fr.fromString((0xdf57089febbacf7ba0bc227dafbffa9fc08a93fdc68e1e42411a14efcf23656en % FIELD_MODULUS).toString());
-    const secret_answer = englishWordToField("mango");
+    const secret_answer = englishWordToField("pineapple");
     
     console.log("📋 Configuration:");
     console.log(`   Current Owner: ${currentOwner}`);
